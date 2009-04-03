@@ -22,7 +22,14 @@ import dbus.service
 
 from .accounts import Account
 
-__all__ = ('Provider', 'ProviderDBusWrapper')
+__all__ = ('Provider', 'ProviderDBusWrapper', 'ProviderError', 'ProviderRemoteError')
+
+
+class ProviderError(Exception):
+    """Base exception for provider errors"""
+
+class ProviderRemoteError(ProviderError):
+    """Raised when communication with a remote provider fails somehow."""
 
 
 class Provider(object):
@@ -57,6 +64,6 @@ class ProviderDBusWrapper(dbus.service.Object):
     @dbus.service.method(dbus_interface='org.saywah.Provider',
                          in_signature='sss', out_signature='')
     def send_message(self, service, username, message):
-        from .service import saywah_service
+        from saywah.core.service import saywah_service
         account = saywah_service.accounts.get_by_service_and_username(service, username)
         self._provider.send_message(account, message)

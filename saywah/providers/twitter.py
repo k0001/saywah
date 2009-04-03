@@ -17,9 +17,22 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from saywah.core.providers import Provider
+import logging
+import time
+import urllib
+
+import httplib2
+
+from saywah.core.providers import Provider, ProviderRemoteError
 
 __all__ = ('TwitterProvider',)
+
+
+log = logging.getLogger(__name__)
+
+
+class TwiterRemoteError(ProviderRemoteError):
+    """Communication with Twitter failed"""
 
 
 class TwitterProvider(Provider):
@@ -27,5 +40,18 @@ class TwitterProvider(Provider):
     slug = u'twitter'
 
     def send_message(self, account, message):
-        print account, message
+        if len(message) > 140:
+            raise ValueError(u"Message must be at most 140 characters long")
+        msg_id = int(time.time())
+        data = {"status": message.encode("utf-8")}
+        h = httplib2.Http()
+        h.add_credentials(account.username, account.password)
+        log.info(u"Sending message %s with %s account %s" % (msg_id, self.name, account.username))
+        resp, content = h.request("http://twitter.com/statuses/update.json",
+                                  "POST", urllib.urlencode(data))
+        if resp.status != 200:
+            log.warning(u"Message %s could not be sent: %s" % (msg_id, content))
+            raise TwitterRemoteError(content)
+
+        log.info(u"Message %s sent" % msg_id)
 
