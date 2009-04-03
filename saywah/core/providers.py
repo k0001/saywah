@@ -20,6 +20,8 @@
 import dbus
 import dbus.service
 
+from .accounts import Account
+
 __all__ = ('Provider', 'ProviderDBusWrapper')
 
 
@@ -31,7 +33,7 @@ class Provider(object):
 
     # The following methods are to be overriden by provider implementations
 
-    def send_message(self, message):
+    def send_message(self, account, message):
         raise NotImplementedError
     send_message._disabled = True
 
@@ -48,6 +50,8 @@ class ProviderDBusWrapper(dbus.service.Object):
         return self._provider.features
 
     @dbus.service.method(dbus_interface='org.saywah.Provider',
-                         in_signature='', out_signature='')
-    def send_message(self, message):
-        self._provider.send_message(message)
+                         in_signature='sss', out_signature='')
+    def send_message(self, service, username, message):
+        from .service import saywah_service
+        account = saywah_service.accounts.get_by_service_and_username(service, username)
+        self._provider.send_message(account, message)
