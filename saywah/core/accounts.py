@@ -60,7 +60,6 @@ class Account(object):
         return acc
 
 
-
 class AccountsRegistry(list):
     def get_by_service_and_username(self, service, username):
         for k in self:

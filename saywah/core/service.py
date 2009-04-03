@@ -75,7 +75,6 @@ class SaywahService(object):
         return self._ready
 
 
-
 class SaywahServiceDBusWrapper(dbus.service.Object):
     def __init__(self, saywah_service, *args, **kwargs):
         super(SaywahServiceDBusWrapper, self).__init__(*args, **kwargs)
@@ -95,13 +94,18 @@ class SaywahServiceDBusWrapper(dbus.service.Object):
     # DBus 'org.saywah.Saywah' interface methods
     @dbus.service.method(dbus_interface='org.saywah.Saywah',
                          in_signature='', out_signature='as')
-    def get_providers(self):
+    def list_providers_paths(self):
         return self._wrapped_providers.keys()
+
+
+    @dbus.service.method(dbus_interface='org.saywah.Saywah',
+                         in_signature='', out_signature='aas')
+    def list_accounts(self):
+        return [(a.service, a.username) for a in self._saywah_service.accounts]
 
 
 # Our SaywahService singleton
 saywah_service = SaywahService()
-
 
 def start_dbus_saywah_service():
     if not saywah_service.ready:
