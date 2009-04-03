@@ -8,9 +8,11 @@ except ImportError:
 
 import sys
 
-requires = []
-if sys.version_info < (2, 6):
-    requires.append('simplejson')
+def get_requires():
+    requires = ['httplib2']
+    if sys.version_info < (2, 6):
+        requires.append('simplejson')
+    return requires
 
 def get_packages(start):
     out = [start]
@@ -24,7 +26,7 @@ setup(name=u'Saywah',
       author_email=u'gnuk0001@gmail.com',
       url=u'http://github.com/k0001/saywah',
       packages=get_packages('saywah'),
-      requires=requires,
+      requires=get_requires(),
       scripts=['scripts/saywah']
  )
 
