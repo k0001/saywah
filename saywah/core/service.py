@@ -52,17 +52,27 @@ class SaywahService(object):
         if not os.path.isdir(CONFIG_PATH):
             os.makedirs(CONFIG_PATH)
 
+        self._setup__load_providers()
         self._setup__load_accounts()
         self._ready = True
 
     def sync(self):
+        if not self.ready:
+            raise RuntimeError(u"Saywah service not set up")
         self._sync__save_accounts()
+
+    def _setup__load_providers(self):
+        # XXX: some day this will be un-hardcoded =)
+        from ..providers.twitter import TwitterProvider
+        self.providers[TwitterProvider.slug] = TwitterProvider()
 
     def _setup__load_accounts(self):
         accs_cfg_path = os.path.join(CONFIG_PATH, 'accounts.json')
         with open(accs_cfg_path, 'rb') as f:
             raw_accs_data = json.load(f, encoding='utf-8')
-        self.accounts.load_raw_dicts(raw_accs_data['accounts'])
+        # remove accounts whose service is not supported
+        raw_accs = [d for d in raw_accs_data['accounts'] if d['service'] in self.providers]
+        self.accounts.load_raw_dicts(raw_accs)
 
     def _sync__save_accounts(self):
         accs_cfg_path = os.path.join(CONFIG_PATH, 'accounts.json')
@@ -109,7 +119,7 @@ saywah_service = SaywahService()
 
 def start_dbus_saywah_service():
     if not saywah_service.ready:
-        raise RuntimeError(u"Saywah service not set, call setup_saywah_service() first")
+        raise RuntimeError(u"Saywah service not set up")
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     session_bus = dbus.SessionBus()
     name = dbus.service.BusName('org.saywah.Saywah', session_bus)

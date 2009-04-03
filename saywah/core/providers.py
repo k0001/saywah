@@ -26,6 +26,11 @@ __all__ = ('Provider', 'ProviderDBusWrapper')
 
 
 class Provider(object):
+    # A pretty name for this provider
+    name = u''
+    # A short slug for this provider
+    slug = u''
+
     @property
     def features(self):
         meth_names = ('send_message',)
