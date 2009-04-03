@@ -25,5 +25,6 @@ setup(name=u'Saywah',
       url=u'http://github.com/k0001/saywah',
       packages=get_packages('saywah'),
       requires=requires,
+      scripts=['scripts/saywah']
  )
 

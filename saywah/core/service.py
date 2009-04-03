@@ -17,6 +17,7 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import logging
 import os
 
 try:
@@ -32,9 +33,11 @@ import gobject
 from .providers import ProviderDBusWrapper
 from .accounts import Account, AccountsRegistry, AccountDBusWrapper
 
+
 __all__ = ('SaywahService', 'SaywahServiceDBusWrapper', 'start_dbus_saywah_service',
            'saywah_service')
 
+log = logging.getLogger(__name__)
 
 CONFIG_PATH = os.path.expanduser("~/.config/saywah")
 
@@ -48,15 +51,15 @@ class SaywahService(object):
     def setup(self):
         if self._ready:
             raise RuntimeError(u"Saywah service already set up")
-
+        log.info(u"Setting up SaywahService")
         if not os.path.isdir(CONFIG_PATH):
             os.makedirs(CONFIG_PATH)
-
         self._setup__load_providers()
         self._setup__load_accounts()
         self._ready = True
 
     def sync(self):
+        log.info(u"Syncronizing SaywahService")
         if not self.ready:
             raise RuntimeError(u"Saywah service not set up")
         self._sync__save_accounts()
@@ -68,6 +71,7 @@ class SaywahService(object):
 
     def _setup__load_accounts(self):
         accs_cfg_path = os.path.join(CONFIG_PATH, 'accounts.json')
+        log.info(u"Loading accounts from %s" % accs_cfg_path)
         with open(accs_cfg_path, 'rb') as f:
             raw_accs_data = json.load(f, encoding='utf-8')
         # remove accounts whose service is not supported
@@ -138,4 +142,5 @@ def start_dbus_saywah_service():
                                                    object_path='/',
                                                    bus_name='org.saywah.Saywah')
     mainloop = gobject.MainLoop()
+    log.info(u"Sarting gobject main loop")
     return mainloop.run()

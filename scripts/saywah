@@ -1,0 +1,54 @@
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
+
+# This file is part of Saywah.
+# Copyright (C) 2009 Renzo Carbonara <gnuk0001@gmail.com>
+#
+# Saywah is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Saywah is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
+
+import logging
+import optparse
+
+from saywah.core.service import saywah_service, start_dbus_saywah_service
+
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
+
+
+def parse_args():
+    usage = u"usage: %prog [options] message"
+    parser = optparse.OptionParser(usage)
+
+    parser.add_option("--no-dbus-service",
+            action="store_false", dest="dbus_service", default=True,
+            help=u"don't start Saywah DBus service")
+
+    opts, args = parser.parse_args()
+    if not opts.dbus_service:
+        # nothing to do
+        parser.print_help()
+        raise SystemExit(1)
+
+    return opts, args
+
+def main():
+    opts, args = parse_args()
+
+    if opts.dbus_service:
+        saywah_service.setup()
+        start_dbus_saywah_service()
+
+if __name__ == '__main__':
+    main()
