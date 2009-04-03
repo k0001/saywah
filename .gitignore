@@ -2,3 +2,6 @@
 *.swp
 *.swo
 *~
+build/*
+dist/*
+Saywah.egg-info/*
