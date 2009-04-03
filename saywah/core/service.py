@@ -30,7 +30,7 @@ import dbus.mainloop.glib
 import gobject
 
 from .providers import ProviderDBusWrapper
-from .accounts import Account, AccountsRegistry
+from .accounts import Account, AccountsRegistry, AccountDBusWrapper
 
 __all__ = ('SaywahService', 'SaywahServiceDBusWrapper', 'start_dbus_saywah_service',
            'saywah_service')
@@ -71,7 +71,7 @@ class SaywahService(object):
         with open(accs_cfg_path, 'rb') as f:
             raw_accs_data = json.load(f, encoding='utf-8')
         # remove accounts whose service is not supported
-        raw_accs = [d for d in raw_accs_data['accounts'] if d['service'] in self.providers]
+        raw_accs = [d for d in raw_accs_data['accounts'] if d['provider'] in self.providers]
         self.accounts.load_raw_dicts(raw_accs)
 
     def _sync__save_accounts(self):
@@ -90,6 +90,7 @@ class SaywahServiceDBusWrapper(dbus.service.Object):
         super(SaywahServiceDBusWrapper, self).__init__(*args, **kwargs)
         self._saywah_service = saywah_service
         self._register_providers()
+        self._register_accounts()
 
     def _register_providers(self):
         self._wrapped_providers = {}
@@ -100,18 +101,27 @@ class SaywahServiceDBusWrapper(dbus.service.Object):
                                      bus_name='org.saywah.Saywah')
             self._wrapped_providers[object_path] = wp
 
+    def _register_accounts(self):
+        self._wrapped_accounts = {}
+        for a in self._saywah_service.accounts:
+            object_path = u'/accounts/%s/%s' % (a.provider.slug, a.slug)
+            ap = AccountDBusWrapper(a, conn=self._connection,
+                                    object_path=object_path,
+                                    bus_name='org.saywah.Saywah')
+            self._wrapped_accounts[object_path] = ap
+
 
     # DBus 'org.saywah.Saywah' interface methods
     @dbus.service.method(dbus_interface='org.saywah.Saywah',
                          in_signature='', out_signature='as')
-    def list_providers_paths(self):
+    def get_providers(self):
         return self._wrapped_providers.keys()
 
 
     @dbus.service.method(dbus_interface='org.saywah.Saywah',
-                         in_signature='', out_signature='aas')
-    def list_accounts(self):
-        return [(a.service, a.username) for a in self._saywah_service.accounts]
+                         in_signature='', out_signature='as')
+    def get_accounts(self):
+        return self._wrapped_accounts.keys()
 
 
 # Our SaywahService singleton

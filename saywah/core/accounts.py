@@ -20,6 +20,9 @@
 import datetime
 import logging
 
+import dbus
+import dbus.service
+
 __all__ = ("Account", "AccountsRegistry")
 
 
@@ -30,24 +33,45 @@ log = logging.getLogger(__name__)
 
 class Account(object):
 
-    def __init__(self, username, password, service,
+    def __init__(self, username, password, provider,
                  last_updated=None, last_received_message_id=None):
         self.username = username
         self.password = password
-        self.service = service
+        self.provider = provider
         self.last_received_message_id = last_received_message_id
         if last_updated is not None and not isinstance(last_updated, datetime.datetime):
             raise TypeError(last_updated)
         self.last_updated = last_updated
 
     def __repr__(self):
-        return u"<%s: %s - %s>" % (self.__class__.__name__, self.service, self.username)
+        return u"<%s: %s - %s>" % (self.__class__.__name__, self.provider.name, self.username)
+
+    def _get_provider(self):
+        if hasattr(self, '_provider'):
+            return self._provider
+        raise AttributeError
+
+    def _set_provider(self, value):
+        from saywah.core.providers import Provider
+        if isinstance(value, Provider):
+            self._provider = value
+        elif isinstance(value, basestring):
+            from saywah.core.service import saywah_service
+            self._provider = saywah_service.providers[value]
+        else:
+            raise TypeError(value)
+
+    provider = property(_get_provider, _set_provider)
+
+    @property
+    def slug(self):
+        return self.username.replace(u' ', u'+')
 
     def to_raw_dict(self):
         d = {
             u'username': self.username,
             u'password': self.password,
-            u'service': self.service }
+            u'provider': self.provider.slug }
         if self.last_updated:
             d[u'last_updated'] = self.last_updated.strftime(_utc_datetime_iso8601_strfmt)
         if self.last_received_message_id is not None:
@@ -56,12 +80,31 @@ class Account(object):
 
     @classmethod
     def from_raw_dict(cls, d):
-        acc = Account(username=d['username'], password=d['password'], service=d['service'])
+        acc = Account(username=d['username'], password=d['password'], provider=d['provider'])
         if 'last_received_message_id' in d:
             acc.last_received_message_id = d['last_received_message_id']
         if 'last_updated' in d:
             acc.last_updated = datetime.datetime.strptime(d['last_updated'], _utc_datetime_iso8601_strfmt)
         return acc
+
+
+class AccountDBusWrapper(dbus.service.Object):
+    def __init__(self, account, *args, **kwargs):
+        self._account = account
+        super(AccountDBusWrapper, self).__init__(*args, **kwargs)
+
+    # DBus 'org.saywah.Account' interface methods
+    @dbus.service.method(dbus_interface='org.saywah.Account',
+                         in_signature='', out_signature='a{ss}')
+    def get_details(self):
+        d = dict((k, unicode(v)) for (k,v) in self._account.to_raw_dict().items())
+        del d['password']
+        return d
+
+    @dbus.service.method(dbus_interface='org.saywah.Account',
+                         in_signature='s', out_signature='')
+    def send_message(self, message):
+        self._account.provider.send_message(self._account, message)
 
 
 class AccountsRegistry(object):
