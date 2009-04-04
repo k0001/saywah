@@ -40,14 +40,18 @@ class Provider(object):
 
     @property
     def features(self):
-        meth_names = ('send_message',)
+        meth_names = ('send_message', 'get_new_messages')
         return tuple(n for n in meth_names if getattr(getattr(self, n), '_disabled'))
 
     # The following methods are to be overriden by provider implementations
 
     def send_message(self, account, message):
-        raise NotImplementedError
+        raise NotImplementedError()
     send_message._disabled = True
+
+    def get_new_messages(self, account):
+        raise NotImplementedError()
+    get_new_messages._disabled = True
 
 
 class ProviderDBusWrapper(dbus.service.Object):

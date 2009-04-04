@@ -17,9 +17,17 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import datetime
+import locale
 import logging
+import re
 import time
 import urllib
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 import httplib2
 
@@ -46,12 +54,48 @@ class TwitterProvider(Provider):
         data = {"status": message.encode("utf-8")}
         h = httplib2.Http()
         h.add_credentials(account.username, account.password)
-        log.info(u"Sending message %s with %s account %s" % (msg_id, self.name, account.username))
+        log.info(u"Sending message %s with Twitter account %s" % (msg_id, account.username))
         resp, content = h.request("http://twitter.com/statuses/update.json",
                                   "POST", urllib.urlencode(data))
         if resp.status != 200:
             log.warning(u"Message %s could not be sent: %s" % (msg_id, content))
             raise TwitterRemoteError(content)
-
         log.info(u"Message %s sent" % msg_id)
+
+    def get_new_messages(self, account):
+        h = httplib2.Http()
+        h.add_credentials(account.username, account.password)
+        log.info(u"Receiving Twitter messages for account %s" % account.username)
+        resp, content = h.request("http://twitter.com/statuses/friends_timeline.json", "GET")
+        if resp.status != 200:
+            log.warning(u"Error receiving Twitter messages")
+            raise TwitterRemoteError(content)
+        log.info(u"Twitter messages for account % received" % account.username)
+        statuses = json.loads(content, encoding='utf-8')
+        out = []
+        for status in statuses:
+            print repr(status['created_at'])
+            message = {
+                'id': status['id'],
+                'utc_created_at': utc_datetime_from_twitter_timestamp(status['created_at']),
+                'raw_text': status['text'],
+                'sender_id': status['user']['id'],
+                'sender_name': status['user']['name'],
+                'sender_nick': status['user']['screen_name'],
+                'sender_avatar': status['user']['profile_image_url'],
+                'sender_home': u'http://twitter.com/%s' % status['user']['screen_name'] }
+            out.append(message)
+        # TODO: return some model
+        return out
+
+
+def utc_datetime_from_twitter_timestamp(s):
+    """Parses as datetime.datetime in UTC a string formated Twitter timestamp"""
+    # we must parse the date in an english locale (due to %a and %b)
+    prev_loc = locale.getlocale()
+    try:
+        locale.setlocale(locale.LC_ALL, 'C')
+        return datetime.datetime.strptime(s, '%a %b %d %H:%M:%S +0000 %Y')
+    finally:
+        locale.setlocale(locale.LC_ALL, prev_loc)
 

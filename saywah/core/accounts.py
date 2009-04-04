@@ -107,6 +107,7 @@ class AccountDBusWrapper(dbus.service.Object):
         self._account.provider.send_message(self._account, message)
 
 
+
 class AccountsRegistry(object):
     def __init__(self, iterable=None):
         self._list = list(iterable or ())
