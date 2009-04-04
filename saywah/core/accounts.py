@@ -17,47 +17,42 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import datetime
 import logging
 
 import dbus
 import dbus.service
 
+from saywah.core import models
+
 __all__ = ("Account", "AccountsRegistry")
 
-
-_utc_datetime_iso8601_strfmt = "%Y-%m-%dT%H:%M:%S.%f"
 
 log = logging.getLogger(__name__)
 
 
-class Account(object):
+class Account(models.Model):
+    username = models.UnicodeField()
+    password = models.UnicodeField()
+    provider_slug = models.UnicodeField()
+    last_received_message_id = models.UnicodeField()
+    last_updated = models.DatetimeField()
 
-    def __init__(self, username, password, provider,
-                 last_updated=None, last_received_message_id=None):
-        self.username = username
-        self.password = password
-        self.provider = provider
-        self.last_received_message_id = last_received_message_id
-        if last_updated is not None and not isinstance(last_updated, datetime.datetime):
-            raise TypeError(last_updated)
-        self.last_updated = last_updated
+    objects = set()
 
     def __repr__(self):
-        return u"<%s: %s - %s>" % (self.__class__.__name__, self.provider.name, self.username)
+        return u"<%s: %s - %s>" % (self.__class__.__name__, self.provider_slug, self.username)
 
     def _get_provider(self):
-        if hasattr(self, '_provider'):
-            return self._provider
-        raise AttributeError
+        from saywah.core.service import saywah_service
+        if self.provider_slug:
+            return saywah_service.providers[self.provider_slug]
 
     def _set_provider(self, value):
         from saywah.core.providers import Provider
-        if isinstance(value, Provider):
-            self._provider = value
-        elif isinstance(value, basestring):
-            from saywah.core.service import saywah_service
-            self._provider = saywah_service.providers[value]
+        if value is None:
+            self.provider_slug = None
+        elif isinstance(value, Provider):
+            self.provider_slug = value.slug
         else:
             raise TypeError(value)
 
@@ -66,26 +61,6 @@ class Account(object):
     @property
     def slug(self):
         return self.username.replace(u' ', u'+')
-
-    def to_raw_dict(self):
-        d = {
-            u'username': self.username,
-            u'password': self.password,
-            u'provider': self.provider.slug }
-        if self.last_updated:
-            d[u'last_updated'] = self.last_updated.strftime(_utc_datetime_iso8601_strfmt)
-        if self.last_received_message_id is not None:
-            d[u'last_received_message_id'] = self.last_received_message_id
-        return d
-
-    @classmethod
-    def from_raw_dict(cls, d):
-        acc = Account(username=d['username'], password=d['password'], provider=d['provider'])
-        if 'last_received_message_id' in d:
-            acc.last_received_message_id = d['last_received_message_id']
-        if 'last_updated' in d:
-            acc.last_updated = datetime.datetime.strptime(d['last_updated'], _utc_datetime_iso8601_strfmt)
-        return acc
 
 
 class AccountDBusWrapper(dbus.service.Object):
