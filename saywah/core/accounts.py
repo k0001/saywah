@@ -20,10 +20,7 @@
 import datetime
 import logging
 
-import dbus
-import dbus.service
-
-__all__ = ("Account", "AccountsRegistry")
+__all__ = ("Account",)
 
 
 _utc_datetime_iso8601_strfmt = "%Y-%m-%dT%H:%M:%S.%f"
@@ -87,63 +84,3 @@ class Account(object):
             acc.last_updated = datetime.datetime.strptime(d['last_updated'], _utc_datetime_iso8601_strfmt)
         return acc
 
-
-class AccountDBusWrapper(dbus.service.Object):
-    def __init__(self, account, *args, **kwargs):
-        self._account = account
-        super(AccountDBusWrapper, self).__init__(*args, **kwargs)
-
-    # DBus 'org.saywah.Account' interface methods
-    @dbus.service.method(dbus_interface='org.saywah.Account',
-                         in_signature='', out_signature='a{ss}')
-    def get_details(self):
-        d = dict((k, unicode(v)) for (k,v) in self._account.to_raw_dict().items())
-        del d['password']
-        return d
-
-    @dbus.service.method(dbus_interface='org.saywah.Account',
-                         in_signature='s', out_signature='')
-    def send_message(self, message):
-        self._account.provider.send_message(self._account, message)
-
-
-
-class AccountsRegistry(object):
-    def __init__(self, iterable=None):
-        self._list = list(iterable or ())
-
-    def get_by_service_and_username(self, service, username):
-        for k in self._list:
-            if k.service == service and k.username == username:
-                return k
-        else:
-            raise KeyError((service, username))
-
-    def delete_by_service_and_username(self, service, username):
-        for i,k in enumerate(self._list):
-            if k.service == service and k.username == username:
-                del self._list[i]
-        else:
-            raise KeyError((service, username))
-
-    def load(self, account):
-        if not isinstance(account, Account):
-            raise TypeError(account)
-        log.debug(u'Loading %s' % repr(account))
-        self._list.append(account)
-
-    def load_raw_dicts(self, data):
-        for rd in data:
-            self.load(Account.from_raw_dict(rd))
-
-    def dump_raw_dicts(self):
-        return [d.to_raw_dict() for d in self._list]
-
-    def __repr__(self):
-        return u'<%s %s>' % (self.__class__.__name__, repr(self._list))
-
-    def __iter__(self):
-        return iter(self._list)
-
-    def __len__(self):
-        return len(self._list)

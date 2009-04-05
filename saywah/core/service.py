@@ -25,17 +25,12 @@ try:
 except ImportError:
     import simplejson as json
 
-import dbus
-import dbus.service
-import dbus.mainloop.glib
-import gobject
-
-from .providers import ProviderDBusWrapper
-from .accounts import Account, AccountsRegistry, AccountDBusWrapper
+from saywah.core.providers import ProviderDBusWrapper
+from saywah.core.accounts import Account, AccountsRegistry, AccountDBusWrapper
 
 
-__all__ = ('SaywahService', 'SaywahServiceDBusWrapper', 'start_dbus_saywah_service',
-           'saywah_service')
+__all__ = ('SaywahService', 'SaywahServiceDBusWrapper', 'saywah_service')
+
 
 log = logging.getLogger(__name__)
 
@@ -89,58 +84,6 @@ class SaywahService(object):
         return self._ready
 
 
-class SaywahServiceDBusWrapper(dbus.service.Object):
-    def __init__(self, saywah_service, *args, **kwargs):
-        super(SaywahServiceDBusWrapper, self).__init__(*args, **kwargs)
-        self._saywah_service = saywah_service
-        self._register_providers()
-        self._register_accounts()
-
-    def _register_providers(self):
-        self._wrapped_providers = {}
-        for k,v in self._saywah_service.providers.items():
-            object_path = u'/providers/%s' % k
-            wp = ProviderDBusWrapper(v, conn=self._connection,
-                                     object_path=object_path,
-                                     bus_name='org.saywah.Saywah')
-            self._wrapped_providers[object_path] = wp
-
-    def _register_accounts(self):
-        self._wrapped_accounts = {}
-        for a in self._saywah_service.accounts:
-            object_path = u'/accounts/%s/%s' % (a.provider.slug, a.slug)
-            ap = AccountDBusWrapper(a, conn=self._connection,
-                                    object_path=object_path,
-                                    bus_name='org.saywah.Saywah')
-            self._wrapped_accounts[object_path] = ap
-
-
-    # DBus 'org.saywah.Saywah' interface methods
-    @dbus.service.method(dbus_interface='org.saywah.Saywah',
-                         in_signature='', out_signature='as')
-    def get_providers(self):
-        return self._wrapped_providers.keys()
-
-
-    @dbus.service.method(dbus_interface='org.saywah.Saywah',
-                         in_signature='', out_signature='as')
-    def get_accounts(self):
-        return self._wrapped_accounts.keys()
-
-
 # Our SaywahService singleton
 saywah_service = SaywahService()
 
-def start_dbus_saywah_service():
-    if not saywah_service.ready:
-        raise RuntimeError(u"Saywah service not set up")
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    session_bus = dbus.SessionBus()
-    name = dbus.service.BusName('org.saywah.Saywah', session_bus)
-    dbus_saywah_service = SaywahServiceDBusWrapper(saywah_service,
-                                                   conn=session_bus,
-                                                   object_path='/',
-                                                   bus_name='org.saywah.Saywah')
-    mainloop = gobject.MainLoop()
-    log.info(u"Sarting gobject main loop")
-    return mainloop.run()
