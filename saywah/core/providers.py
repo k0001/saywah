@@ -53,7 +53,7 @@ class Provider(object):
     @property
     def features(self):
         meth_names = ('send_message', 'get_new_messages')
-        return tuple(n for n in meth_names if getattr(getattr(self, n), '_disabled'))
+        return tuple(n for n in meth_names if not getattr(getattr(self, n), '_disabled', False))
 
     # The following methods are to be overriden by provider implementations
 

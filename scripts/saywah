@@ -46,5 +46,9 @@ def main():
     if opts.dbus_service:
         saywah.core.dbus_services.start()
 
+    import gobject
+    loop = gobject.MainLoop()
+    loop.run()
+
 if __name__ == '__main__':
     main()

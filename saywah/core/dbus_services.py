@@ -24,6 +24,8 @@ import dbus
 import dbus.mainloop.glib
 import dbus.service
 
+from saywah.core.accounts import Account
+from saywah.core.providers import Provider
 from saywah.core.service import saywah_service
 
 
@@ -59,7 +61,7 @@ class ProviderDBus(dbus.service.Object):
     def start(cls, connection):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
-        cls.register_providers(connection, ())
+        cls.register_providers(connection, Provider.register.values())
         log.debug(u"Starting %s services" % cls.__name__)
         cls._started = True
 
@@ -108,7 +110,7 @@ class AccountDBus(dbus.service.Object):
     def start(cls, connection):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
-        cls.register_accounts(connection, ())
+        cls.register_accounts(connection, list(Account.objects))
         log.debug(u"Starting %s services" % cls.__name__)
         cls._started = True
 
@@ -183,11 +185,12 @@ class SaywahDBus(dbus.service.Object):
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
                          in_signature='', out_signature='as')
     def get_accounts(self):
-        return AccountsDBus.register.keys()
+        return AccountDBus.register.keys()
 
 
 class saywah_dbus_services(object):
     _started = False
+    _bus_name = None
 
     @classmethod
     def start(cls):
@@ -195,6 +198,8 @@ class saywah_dbus_services(object):
             raise RuntimeError(u'DBus service already started')
         log.info(u"Starting all Saywah services")
         conn = dbus.SessionBus()
+        cls._bus_name = dbus.service.BusName(DBUS_BUS_NAME, conn)
+        log.info("DBus services using bus name: %s" % DBUS_BUS_NAME)
         try:
             SaywahDBus.start(conn)
             ProviderDBus.start(conn)
@@ -210,9 +215,10 @@ class saywah_dbus_services(object):
     def stop(cls):
         if cls._started:
             log.debug(u"Stoping all Saywah services")
-            SaywahDBus.stop(conn)
-            ProviderDBus.stop(conn)
-            AccountDBus.stop(conn)
+            SaywahDBus.stop()
+            ProviderDBus.stop()
+            AccountDBus.stop()
+            cls._bus_name = None
             cls._started = False
 
 start = saywah_dbus_services.start
