@@ -23,6 +23,7 @@ import logging
 import dbus
 import dbus.mainloop.glib
 import dbus.service
+import louie
 
 from saywah.core.accounts import Account
 from saywah.core.providers import Provider
@@ -110,8 +111,12 @@ class AccountDBus(dbus.service.Object):
     def start(cls, connection):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
-        cls.register_accounts(connection, list(Account.objects))
         log.debug(u"Starting %s services" % cls.__name__)
+        cls.register_accounts(connection, list(Account.objects))
+        louie.dispatcher.connect(receiver=cls._on_account_post_add_handler,
+                                 signal=Account.objects.post_add)
+        louie.dispatcher.connect(receiver=cls._on_account_post_remove_handler,
+                                 signal=Account.objects.post_remove)
         cls._started = True
 
     @classmethod
@@ -119,19 +124,40 @@ class AccountDBus(dbus.service.Object):
         if cls._started:
             log.debug(u"stoping %s services" % cls.__name__)
             cls.unregister_accounts()
+            louie.dispatcher.disconnect(receiver=cls._on_account_post_add_handler,
+                                        signal=Account.objects.post_add)
+            louie.dispatcher.disconnect(receiver=cls._on_account_post_remove_handler,
+                                        signal=Account.objects.post_remove)
             cls._started = False
 
     @classmethod
     def register_accounts(cls, connection, accounts):
         for a in accounts:
-            object_path = DBUS_OBJECT_PATHS['account'] % { u'provider': a.provider_slug,
-                                                           u'username': a.slug }
+            object_path = DBUS_OBJECT_PATHS['provider_account'] % { u'provider': a.provider_slug,
+                                                                    u'username': a.slug }
             ad = AccountDBus(a, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
             cls.register[object_path] = ad
 
     @classmethod
     def unregister_accounts(cls):
         cls.register.clear()
+
+    @classmethod
+    def unregister_account(cls, account):
+        for k,v in cls.register.items():
+            if v._account == account:
+                del cls.register[k]
+                return
+        else:
+            raise KeyError(account)
+
+    @classmethod
+    def _on_account_post_add_handler(cls, named=None):
+        cls.register_account(named['item'])
+
+    @classmethod
+    def _on_account_post_remove_handler(cls, named=None):
+        cls.unregister_account(named['item'])
 
 
     # DBus exposed methods
@@ -180,6 +206,7 @@ class SaywahDBus(dbus.service.Object):
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
                          in_signature='', out_signature='as')
     def get_providers(self):
+        import ipdb; ipdb.set_trace()
         return ProviderDBus.register.keys()
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],

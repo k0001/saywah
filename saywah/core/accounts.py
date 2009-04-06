@@ -20,6 +20,7 @@
 import logging
 
 from saywah.core import models
+from saywah.core import signals
 
 
 __all__ = ("Account",)
@@ -35,7 +36,7 @@ class Account(models.Model):
     last_received_message_id = models.UnicodeField()
     last_updated = models.DatetimeField()
 
-    objects = set()
+    objects = signals.SignalingSet()
 
     def __repr__(self):
         return u"<%s: %s - %s>" % (self.__class__.__name__, self.provider_slug, self.username)
