@@ -17,11 +17,7 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import dbus
-import dbus.service
-
-
-__all__ = ('Provider', 'ProviderDBusWrapper', 'ProviderError', 'ProviderRemoteError')
+__all__ = ('Provider', 'ProviderError', 'ProviderRemoteError')
 
 
 class ProviderError(Exception):
@@ -54,23 +50,3 @@ class Provider(object):
     get_new_messages._disabled = True
 
 
-class ProviderDBusWrapper(dbus.service.Object):
-    def __init__(self, provider, *args, **kwargs):
-        self._provider = provider
-        super(ProviderDBusWrapper, self).__init__(*args, **kwargs)
-
-    # DBus 'org.saywah.Provider' interface methods
-    @dbus.service.method(dbus_interface='org.saywah.Provider',
-                         in_signature='', out_signature='as')
-    def get_features(self):
-        return self._provider.features
-
-    @dbus.service.method(dbus_interface='org.saywah.Provider',
-                         in_signature='', out_signature='as')
-    def get_accounts(self):
-        from saywah.core.service import saywah_service
-        out = []
-        for a in saywah_service.accounts:
-            if a.provider.slug == self._provider.slug:
-                out.append(u'/accounts/%s/%s' % (a.provider.slug, a.slug))
-        return out
