@@ -20,13 +20,7 @@
 import logging
 import os
 
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
-from saywah.core.providers import ProviderDBusWrapper
-from saywah.core.accounts import Account, AccountsRegistry, AccountDBusWrapper
+from saywah.core import conf
 
 
 __all__ = ('SaywahService', 'SaywahServiceDBusWrapper', 'saywah_service')
@@ -34,55 +28,20 @@ __all__ = ('SaywahService', 'SaywahServiceDBusWrapper', 'saywah_service')
 
 log = logging.getLogger(__name__)
 
-CONFIG_PATH = os.path.expanduser("~/.config/saywah")
-
 
 class SaywahService(object):
-    def __init__(self):
-        self.providers = {}
-        self.accounts = AccountsRegistry()
-        self._ready = False
-
     def setup(self):
-        if self._ready:
-            raise RuntimeError(u"Saywah service already set up")
         log.info(u"Setting up SaywahService")
-        if not os.path.isdir(CONFIG_PATH):
-            os.makedirs(CONFIG_PATH)
-        self._setup__load_providers()
-        self._setup__load_accounts()
-        self._ready = True
+        self.load_accounts()
 
-    def sync(self):
-        log.info(u"Syncronizing SaywahService")
-        if not self.ready:
-            raise RuntimeError(u"Saywah service not set up")
-        self._sync__save_accounts()
+    def save_accounts(self):
+        conf.store_current_accounts()
 
-    def _setup__load_providers(self):
-        # XXX: some day this will be un-hardcoded =)
-        from ..providers.twitter import TwitterProvider
-        self.providers[TwitterProvider.slug] = TwitterProvider()
+    def load_accounts(self):
+        conf.load_accounts()
 
-    def _setup__load_accounts(self):
-        accs_cfg_path = os.path.join(CONFIG_PATH, 'accounts.json')
-        log.info(u"Loading accounts from %s" % accs_cfg_path)
-        with open(accs_cfg_path, 'rb') as f:
-            raw_accs_data = json.load(f, encoding='utf-8')
-        # remove accounts whose service is not supported
-        raw_accs = [d for d in raw_accs_data['accounts'] if d['provider'] in self.providers]
-        self.accounts.load_raw_dicts(raw_accs)
-
-    def _sync__save_accounts(self):
-        accs_cfg_path = os.path.join(CONFIG_PATH, 'accounts.json')
-        d = {u'accounts': self.accounts.dump_raw_dicts()}
-        with open(accs_cfg_path, 'wb') as f:
-            json.dump(d, f, indent=2, encoding='utf-8')
-
-    @property
     def ready(self):
         return self._ready
-
 
 # Our SaywahService singleton
 saywah_service = SaywahService()

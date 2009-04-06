@@ -27,6 +27,12 @@ except ImportError, e:
 
 from saywah.core.accounts import Account
 
+
+__all__ = ('store_current_accounts', 'load_accounts', 'init')
+
+
+log = logging.getLogger(__name__)
+
 PATH_ROOT_DIR = os.path.expanduser(u'~/.saywah')
 PATH_ACCOUNTS_JSON = os.path.join(PATH_ROOT_DIR, u'accounts.json')
 
@@ -40,25 +46,33 @@ def accounts_from_json(js, encoding='utf-8'):
     return [Account.from_raw_dict(a) for a in d['accounts']]
 
 def store_current_accounts():
+    log.debug(u"Storing current accounts in %s" % PATH_ACCOUNTS_JSON)
     accounts = list(Account.objects)
     js = accounts_to_json(accounts)
-    if not os.path.isdir(PATH_ROOT_DIR):
-        os.makedirs(PATH_ROOT_DIR)
     with open(PATH_ACCOUNTS_JSON, 'wb') as f:
         f.write(js)
 
 def load_accounts():
+    log.debug(u"Loading accounts from %s" % PATH_ACCOUNTS_JSON)
     if not os.path.isfile(PATH_ACCOUNTS_JSON):
+        log.debug(u"Nothing to load")
         return
     with open(PATH_ACCOUNTS_JSON, 'rb') as f:
         js = f.read()
     accounts = accounts_from_json(js)
     Account.objects.update(set(accounts))
+    log.debug(u"%d accounts loaded" % len(accounts))
 
-def unload_accounts():
-    Account.objects.clear()
+def load_providers():
+    # XXX: unharcode this by discovering all Providers found in saywah.providers package
+    from saywah.providers.twitter import TwitterProvider
+    TwitterProvider()
 
-def reload_accounts():
-    unload_accounts()
-    load_accounts()
+def init():
+    # this is here so that everything explodes early if we can't write there
+    if not os.path.isdir(PATH_ROOT_DIR):
+        os.makedirs(PATH_ROOT_DIR)
+        log.debug(u"Directory %s created" % PATH_ROOT_DIR)
+    logging.basicConfig(level=logging.DEBUG)
+    load_providers()
 

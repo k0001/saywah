@@ -17,7 +17,13 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import logging
+
+
 __all__ = ('Provider', 'ProviderError', 'ProviderRemoteError')
+
+
+log = logging.getLogger(__name__)
 
 
 class ProviderError(Exception):
@@ -33,6 +39,16 @@ class Provider(object):
     name = u''
     # A short slug for this provider
     slug = u''
+    # provider singletons are kept here
+    register = {}
+
+    def __new__(cls, *args, **kwargs):
+        # ensure singletons for each provider are available in Provider.register
+        if not cls.slug in Provider.register:
+            obj = super(Provider, cls).__new__(cls, *args, **kwargs)
+            Provider.register[cls.slug] = obj
+            log.debug(u"%s registered" % cls.__name__)
+        return Provider.register[cls.slug]
 
     @property
     def features(self):
@@ -48,5 +64,4 @@ class Provider(object):
     def get_new_messages(self, account):
         raise NotImplementedError()
     get_new_messages._disabled = True
-
 

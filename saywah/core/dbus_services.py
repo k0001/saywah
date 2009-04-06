@@ -24,6 +24,8 @@ import dbus
 import dbus.mainloop.glib
 import dbus.service
 
+from saywah.core.service import saywah_service
+
 
 __all__ = (u'DBUS_NAME', u'DBUS_OBJECT_PATHS', u'DBUS_INTERFACES',
            u'AccountDBus', u'ProviderDBus', u'SaywahDBus',
@@ -59,14 +61,14 @@ class ProviderDBus(dbus.service.Object):
             raise RuntimeError(u'%s services already started' % cls.__name__)
         cls.register_providers(connection, ())
         log.debug(u"Starting %s services" % cls.__name__)
-        self._started = True
+        cls._started = True
 
     @classmethod
     def stop(cls):
         if cls._started:
             log.debug(u"Stoping %s services" % cls.__name__)
             cls.unregister_providers()
-            self._started = False
+            cls._started = False
 
     @classmethod
     def register_providers(cls, connection, providers):
@@ -108,14 +110,14 @@ class AccountDBus(dbus.service.Object):
             raise RuntimeError(u'%s services already started' % cls.__name__)
         cls.register_accounts(connection, ())
         log.debug(u"Starting %s services" % cls.__name__)
-        self._started = True
+        cls._started = True
 
     @classmethod
     def stop(cls):
         if cls._started:
             log.debug(u"stoping %s services" % cls.__name__)
             cls.unregister_accounts()
-            self._started = False
+            cls._started = False
 
     @classmethod
     def register_accounts(cls, connection, accounts):
@@ -150,25 +152,25 @@ class SaywahDBus(dbus.service.Object):
 
     def __init__(self, saywah_service, *args, **kwargs):
         self._saywah_service = saywah_service
-        super(AccountDBus, self).__init__(*args, **kwargs)
+        super(SaywahDBus, self).__init__(*args, **kwargs)
 
     @classmethod
     def start(cls, connection):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
         log.debug(u"Starting %s services" % cls.__name__)
-        self._instance = SaywahDBus(saywah_service,
+        cls._instance = SaywahDBus(saywah_service,
                                     conn=connection,
                                     object_path=DBUS_OBJECT_PATHS['saywah'],
                                     bus_name=DBUS_BUS_NAME)
-        self._started = True
+        cls._started = True
 
     @classmethod
     def stop(cls):
         if cls._started:
             log.debug(u"Stoping %s services" % cls.__name__)
-            self._instance = None
-            self._started = False
+            cls._instance = None
+            cls._started = False
 
 
     # DBus exposed methods
