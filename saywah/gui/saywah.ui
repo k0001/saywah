@@ -2,13 +2,26 @@
 <interface>
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy toplevel-contextual -->
-  <object class="GtkListStore" id="statuses"/>
   <object class="GtkListStore" id="providers">
     <columns>
       <!-- column-name pic -->
       <column type="GdkPixbuf"/>
       <!-- column-name name -->
       <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkListStore" id="statuses">
+    <columns>
+      <!-- column-name sender -->
+      <column type="gchararray"/>
+      <!-- column-name sender_pic -->
+      <column type="GdkPixbuf"/>
+      <!-- column-name message -->
+      <column type="gchararray"/>
+      <!-- column-name provider -->
+      <column type="gchararray"/>
+      <!-- column-name provider_pic -->
+      <column type="GdkPixbuf"/>
     </columns>
   </object>
   <object class="GtkWindow" id="win_main">
@@ -162,6 +175,35 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="model">statuses</property>
+            <property name="headers_visible">False</property>
+            <child>
+              <object class="GtkTreeViewColumn" id="status">
+                <property name="resizable">True</property>
+                <property name="sizing">fixed</property>
+                <property name="fixed_width">2</property>
+                <property name="title">Status</property>
+                <property name="expand">True</property>
+                <child>
+                  <object class="GtkCellRendererText" id="cr_statuses_status"/>
+                  <attributes>
+                    <attribute name="markup">2</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn" id="Provider">
+                <property name="sizing">autosize</property>
+                <property name="title">Sender Picture</property>
+                <property name="alignment">1</property>
+                <child>
+                  <object class="GtkCellRendererPixbuf" id="cr_statuses_sender_pic"/>
+                  <attributes>
+                    <attribute name="pixbuf">1</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
           </object>
           <packing>
             <property name="position">1</property>
@@ -171,6 +213,10 @@
           <object class="GtkEntry" id="entry_new_status">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
+            <property name="has_focus">True</property>
+            <property name="is_focus">True</property>
+            <property name="can_default">True</property>
+            <property name="has_default">True</property>
             <property name="tooltip_text" translatable="yes">Enter you new status here.</property>
             <property name="invisible_char">&#x25CF;</property>
             <property name="activates_default">True</property>
@@ -209,11 +255,11 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton" id="button1">
-                <property name="label" translatable="yes">Send</property>
+              <object class="GtkButton" id="btn_send">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
+                <property name="use_action_appearance">True</property>
                 <property name="image">image1</property>
                 <property name="image_position">right</property>
               </object>
