@@ -24,9 +24,11 @@ pygtk.require20()
 import gtk
 
 
-SAYWAH_GTKUI_PATH = os.path.join(os.path.dirname(__file__), u'saywah.ui')
-assert os.path.isfile(SAYWAH_GTKUI_PATH)
+SAYWAH_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
+SAYWAH_GUI_RESOURCES_PATH = os.path.join(SAYWAH_GUI_PATH, u'resources')
+SAYWAH_GTKUI_XML_PATH = os.path.join(SAYWAH_GUI_PATH, u'saywah.ui')
 
+twitter_pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'twitter_32.png'), 24, 24)
 
 class MainWindowGTK(object):
     def __init__(self, widget):
@@ -36,11 +38,24 @@ class MainWindowGTK(object):
         self._w.show_all()
 
 
+class ProvidersComboGTK(object):
+    def __init__(self, widget):
+        super(ProvidersComboGTK, self).__init__()
+        self._w = widget
+        self._load_providers()
+        self._w.set_active(0)
+
+    def _load_providers(self):
+        m = self._w.get_model()
+        iter = m.append([twitter_pixbuf, u"k0001"])
+
+
 class SaywahGTK(object):
     def __init__(self):
         super(SaywahGTK, self).__init__()
         self._builder = gtk.Builder()
-        self._builder.add_from_file(SAYWAH_GTKUI_PATH)
+        self._builder.add_from_file(SAYWAH_GTKUI_XML_PATH)
+        self._providers_combo = ProvidersComboGTK(self._builder.get_object(u'combo_providers'))
         self._main_win = MainWindowGTK(self._builder.get_object(u'win_main'))
 
 

@@ -3,6 +3,14 @@
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy toplevel-contextual -->
   <object class="GtkListStore" id="statuses"/>
+  <object class="GtkListStore" id="providers">
+    <columns>
+      <!-- column-name pic -->
+      <column type="GdkPixbuf"/>
+      <!-- column-name name -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
   <object class="GtkWindow" id="win_main">
     <property name="visible">True</property>
     <property name="title" translatable="yes">Saywah</property>
@@ -160,10 +168,14 @@
           </packing>
         </child>
         <child>
-          <object class="GtkTextView" id="textview1">
-            <property name="height_request">44</property>
+          <object class="GtkEntry" id="entry_new_status">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
+            <property name="tooltip_text" translatable="yes">Enter you new status here.</property>
+            <property name="invisible_char">&#x25CF;</property>
+            <property name="activates_default">True</property>
+            <property name="truncate_multiline">True</property>
+            <property name="caps_lock_warning">False</property>
           </object>
           <packing>
             <property name="expand">False</property>
@@ -174,9 +186,23 @@
         <child>
           <object class="GtkHBox" id="hbox1">
             <property name="visible">True</property>
+            <property name="spacing">3</property>
             <child>
               <object class="GtkComboBox" id="combo_providers">
                 <property name="visible">True</property>
+                <property name="model">providers</property>
+                <child>
+                  <object class="GtkCellRendererPixbuf" id="cr_providers_pic"/>
+                  <attributes>
+                    <attribute name="pixbuf">0</attribute>
+                  </attributes>
+                </child>
+                <child>
+                  <object class="GtkCellRendererText" id="cr_providers_name"/>
+                  <attributes>
+                    <attribute name="text">1</attribute>
+                  </attributes>
+                </child>
               </object>
               <packing>
                 <property name="position">0</property>
