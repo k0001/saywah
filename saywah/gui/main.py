@@ -22,6 +22,7 @@ import os
 import pygtk
 pygtk.require20()
 import gtk
+import pango
 
 
 SAYWAH_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
@@ -87,6 +88,10 @@ class StatusesTreeViewGTK(object):
     def __init__(self, widget):
         super(StatusesTreeViewGTK, self).__init__()
         self._w = widget
+        self._col_message = self._w.get_column(0)
+        self._cr_message = self._col_message.get_cell_renderers()[0]
+        self._cr_message.set_property('wrap-mode', pango.WRAP_WORD_CHAR)
+        self._w.connect('size-allocate', self._on_w_size_allocate)
         self._load_statuses()
 
     def _load_statuses(self):
@@ -96,6 +101,9 @@ class StatusesTreeViewGTK(object):
                                                                            u'test', i[u'sender_pic']),
                                                               48, 48)
             iter = m.append([i[u'sender'], sender_pic, i[u'message'], i[u'provider'], twitter_pixbuf])
+
+    def _on_w_size_allocate(self, widget, allocation):
+        self._cr_message.set_property('wrap-width', self._col_message.get_width() - 5)
 
 
 class SaywahGTK(object):
@@ -110,5 +118,4 @@ class SaywahGTK(object):
 
 saywah_gtk = SaywahGTK()
 gtk.main()
-
 
