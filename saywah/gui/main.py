@@ -58,6 +58,8 @@ class StatusesTreeViewGTK(object):
         self._col_message = self._w.get_column(0)
         self._cr_message = self._col_message.get_cell_renderers()[0]
         self._cr_message.set_property('wrap-mode', pango.WRAP_WORD_CHAR)
+        self._cr_message.set_property('single-paragraph-mode', True)
+        self._cr_message.set_property('yalign', 0.0)
         self._w.connect('size-allocate', self._on_w_size_allocate)
 
     def _on_w_size_allocate(self, widget, allocation):
