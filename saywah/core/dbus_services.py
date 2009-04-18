@@ -50,7 +50,7 @@ DBUS_INTERFACES = {
 
 
 class ProviderDBus(dbus.service.Object):
-    register = {}
+    registry = {}
     _started = False
 
     def __init__(self, provider, *args, **kwargs):
@@ -61,7 +61,7 @@ class ProviderDBus(dbus.service.Object):
     def start(cls, connection):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
-        cls.register_providers(connection, Provider.register.values())
+        cls.register_providers(connection, Provider.registry.values())
         log.debug(u"Starting %s services" % cls.__name__)
         cls._started = True
 
@@ -77,11 +77,11 @@ class ProviderDBus(dbus.service.Object):
         for p in providers:
             object_path = DBUS_OBJECT_PATHS['provider'] % { u'provider': p.slug }
             pd = ProviderDBus(p, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
-            cls.register[object_path] = pd
+            cls.registry[object_path] = pd
 
     @classmethod
     def unregister_providers(cls):
-        cls.register.clear()
+        cls.registry.clear()
 
 
     # DBus exposed methods
@@ -95,11 +95,11 @@ class ProviderDBus(dbus.service.Object):
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'provider'],
                          in_signature='', out_signature='as')
     def get_accounts(self):
-        return AccountDBus.register.keys()
+        return AccountDBus.registry.keys()
 
 
 class AccountDBus(dbus.service.Object):
-    register = {}
+    registry = {}
     _started = False
 
     def __init__(self, account, *args, **kwargs):
@@ -127,11 +127,11 @@ class AccountDBus(dbus.service.Object):
             object_path = DBUS_OBJECT_PATHS['account'] % { u'provider': a.provider_slug,
                                                            u'username': a.slug }
             ad = AccountDBus(a, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
-            cls.register[object_path] = ad
+            cls.registry[object_path] = ad
 
     @classmethod
     def unregister_accounts(cls):
-        cls.register.clear()
+        cls.registry.clear()
 
 
     # DBus exposed methods
@@ -180,12 +180,12 @@ class SaywahDBus(dbus.service.Object):
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
                          in_signature='', out_signature='as')
     def get_providers(self):
-        return ProviderDBus.register.keys()
+        return ProviderDBus.registry.keys()
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
                          in_signature='', out_signature='as')
     def get_accounts(self):
-        return AccountDBus.register.keys()
+        return AccountDBus.registry.keys()
 
 
 class saywah_dbus_services(object):

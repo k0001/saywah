@@ -40,15 +40,15 @@ class Provider(object):
     # A short slug for this provider
     slug = u''
     # provider singletons are kept here
-    register = {}
+    registry = {}
 
     def __new__(cls, *args, **kwargs):
-        # ensure singletons for each provider are available in Provider.register
-        if not cls.slug in Provider.register:
+        # ensure singletons for each provider are available in Provider.registry
+        if not cls.slug in Provider.registry:
             obj = super(Provider, cls).__new__(cls, *args, **kwargs)
-            Provider.register[cls.slug] = obj
+            Provider.registry[cls.slug] = obj
             log.debug(u"%s registered" % cls.__name__)
-        return Provider.register[cls.slug]
+        return Provider.registry[cls.slug]
 
     @property
     def features(self):
