@@ -33,7 +33,6 @@ class ProviderError(Exception):
 class ProviderRemoteError(ProviderError):
     """Raised when communication with a remote provider fails somehow."""
 
-
 class Provider(object):
     # A pretty name for this provider
     name = u''

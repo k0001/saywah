@@ -22,6 +22,7 @@ import logging
 import optparse
 
 import saywah.core.conf
+import saywah.core.service
 import saywah.core.dbus_services
 
 
@@ -44,6 +45,7 @@ def main():
     saywah.core.conf.init()
 
     if opts.dbus_service:
+        saywah.core.service.saywah_service.setup()
         saywah.core.dbus_services.start()
 
     import gobject
