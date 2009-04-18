@@ -49,7 +49,38 @@ DBUS_INTERFACES = {
     u'account':             u'org.saywah.Account' }
 
 
-class ProviderDBus(dbus.service.Object):
+class DBusPropertiesExposer(object):
+    """
+    Reusable org.freedesktop.DBus.Properties Implementation Mixin.
+
+    Usage:
+        Add your python ``property`` objects to an instance attribute dict named ``_dbus_properties``.
+    """
+    _dbus_properties = {}
+
+    @dbus.service.method(dbus_interface='org.freedesktop.DBus.Properties',
+                         in_signature='ss', out_signature='v')
+    def Get(self, interface_name, property_name):
+        try:
+            return self._dbus_properties[property_name].fget(self)
+        except KeyError, e:
+            raise AttributeError(property_name)
+
+    @dbus.service.method(dbus_interface='org.freedesktop.DBus.Properties',
+                         in_signature='ssv', out_signature='')
+    def Set(self, interface_name, property_name, value):
+        try:
+            prop = self._dbus_properties[property_name].fset(self, value)
+        except (KeyError, TypeError), e:
+            raise AttributeError(property_name)
+
+    @dbus.service.method(dbus_interface='org.freedesktop.DBus.Properties',
+                         in_signature='s', out_signature='a{sv}')
+    def GetAll(self, interface_name):
+        return dict((k, v.fget(self)) for (k,v) in self._dbus_properties.items())
+
+
+class ProviderDBus(dbus.service.Object, DBusPropertiesExposer):
     registry = {}
     _started = False
 
@@ -98,7 +129,14 @@ class ProviderDBus(dbus.service.Object):
         return AccountDBus.registry.keys()
 
 
-class AccountDBus(dbus.service.Object):
+    # DBusPropertiesExposer properties
+    _dbus_properties = {
+        u'slug': property(lambda self: self._provider.slug),
+        u'name': property(lambda self: self._provider.name)
+    }
+
+
+class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     registry = {}
     _started = False
 
@@ -124,8 +162,8 @@ class AccountDBus(dbus.service.Object):
     @classmethod
     def register_accounts(cls, connection, accounts):
         for a in accounts:
-            object_path = DBUS_OBJECT_PATHS['account'] % { u'provider': a.provider_slug,
-                                                           u'username': a.slug }
+            object_path = DBUS_OBJECT_PATHS['provider_account'] % { u'provider': a.provider_slug,
+                                                                    u'username': a.slug }
             ad = AccountDBus(a, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
             cls.registry[object_path] = ad
 
@@ -148,6 +186,17 @@ class AccountDBus(dbus.service.Object):
         self._account.provider.send_message(self._account, message)
 
 
+    # DBusPropertiesExposer properties
+    _dbus_properties = {
+        u'slug': property(lambda self: self._account.slug),
+        u'username': property(lambda self: self._account.username),
+        u'password': property(lambda self: self._account.password),
+        u'provider_slug': property(lambda self: self._account.provider_slug),
+        u'last_received_message_id': property(lambda self: self._account.last_received_message_id or u""),
+        u'last_updated': property(lambda self: self._account.to_raw_dict()['last_updated'] or u"")
+    }
+
+
 class SaywahDBus(dbus.service.Object):
     _instance = None
     _started = False
@@ -162,9 +211,9 @@ class SaywahDBus(dbus.service.Object):
             raise RuntimeError(u'%s services already started' % cls.__name__)
         log.debug(u"Starting %s services" % cls.__name__)
         cls._instance = SaywahDBus(saywah_service,
-                                    conn=connection,
-                                    object_path=DBUS_OBJECT_PATHS['saywah'],
-                                    bus_name=DBUS_BUS_NAME)
+                                   conn=connection,
+                                   object_path=DBUS_OBJECT_PATHS['saywah'],
+                                   bus_name=DBUS_BUS_NAME)
         cls._started = True
 
     @classmethod

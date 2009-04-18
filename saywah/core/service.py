@@ -30,9 +30,14 @@ log = logging.getLogger(__name__)
 
 
 class SaywahService(object):
+    def __init__(self):
+        super(SaywahService, self).__init__()
+        self._ready = False
+
     def setup(self):
-        log.info(u"Setting up SaywahService")
-        self.load_accounts()
+        if not self.ready:
+            log.info(u"Setting up SaywahService")
+            self.load_accounts()
 
     def save_accounts(self):
         conf.store_current_accounts()
@@ -40,6 +45,7 @@ class SaywahService(object):
     def load_accounts(self):
         conf.load_accounts()
 
+    @property
     def ready(self):
         return self._ready
 
