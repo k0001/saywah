@@ -108,7 +108,6 @@ class SaywahGTK(object):
                 pixbuf = None
             else:
                 pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(fname, width, height)
-                print 'loaded', fname
             self._pixbuf_cache[key] = pixbuf
         return self._pixbuf_cache[key]
 
@@ -161,8 +160,6 @@ class SaywahGTK(object):
         gobject.timeout_add(50, update_message_waiting)
 
 
-
-if __name__ == '__main__':
+def run():
     saywah_gtk = SaywahGTK()
-    mainloop.run()
-
+    return mainloop.run()

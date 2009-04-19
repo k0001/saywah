@@ -21,7 +21,11 @@
 import logging
 import optparse
 
-import saywah.gui.main
+import gobject
+
+import saywah.core.conf
+import saywah.core.service
+import saywah.dbus.services
 
 
 log = logging.getLogger(__name__)
@@ -48,10 +52,12 @@ def main():
     log_level = logging.DEBUG if opts.debug \
                 else logging.INFO if opts.verbose \
                 else None # default
-    logging.basicConfig(level=log_level)
 
+    saywah.core.conf.init(log_level=log_level)
+    saywah.core.service.saywah_service.setup()
+    saywah.dbus.services.start()
     try:
-        raise SystemExit(saywah.gui.main.run())
+        raise SystemExit(saywah.dbus.services.run())
     except KeyboardInterrupt, e:
         raise SystemExit(1)
 

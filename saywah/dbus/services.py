@@ -23,6 +23,7 @@ import logging
 import dbus
 import dbus.mainloop.glib
 import dbus.service
+import gobject
 import louie
 
 from saywah.core.accounts import Account
@@ -299,4 +300,8 @@ class saywah_dbus_services(object):
 
 start = saywah_dbus_services.start
 stop = saywah_dbus_services.stop
+
+def run():
+    mainloop = gobject.MainLoop()
+    return mainloop.run()
 
