@@ -47,6 +47,7 @@ class SaywahGTK(object):
         self._prepare_treeview_statuses()
         self._prepare_win_main()
         self._prepare_combo_accounts()
+        self._preload_images()
         self._builder.connect_signals(self)
         self._win_main.show_all()
 
@@ -71,7 +72,7 @@ class SaywahGTK(object):
                         aprops['slug'],
                         pprops['name'],
                         pprops['slug'],
-                        self._get_provider_pixbuf(pprops['slug'])])
+                        self._get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
 
     def _prepare_treeview_statuses(self):
         self._treeview_statuses = self._builder.get_object(u'treeview_statuses')
@@ -83,25 +84,33 @@ class SaywahGTK(object):
 
     def _prepare_win_main(self):
         self._win_main = self._builder.get_object(u'win_main')
-        self._btn_send = self._builder.get_object(u'btn_send')
         self._entry_message = self._builder.get_object(u'entry_message')
-
+        self._btn_send = self._builder.get_object(u'btn_send')
+        self._img_btn_send = self._builder.get_object(u'img_btn_send')
 
     def _prepare_combo_accounts(self):
         self._combo_accounts = self._builder.get_object(u'combo_accounts')
         self._combo_accounts.set_active(0)
 
-    def _get_provider_pixbuf(self, provider_slug):
-        if not hasattr(self, '_providers_pixbuf_cache'):
-            self._providers_pixbuf_cache = {}
-        if not provider_slug in self._providers_pixbuf_cache:
-            fname = os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'provider_%s.png' % provider_slug)
+    def _preload_images(self):
+        working_imgs = glob.glob(os.path.join(SAYWAH_GUI_RESOURCES_PATH, 'working-*.png'))
+        for fn in working_imgs:
+            self._get_pixbuf_from_filename(fn, 24, 24)
+        self._n_working_frames = len(working_imgs)
+
+    def _get_pixbuf_from_filename(self, fname, width, height):
+        if not hasattr(self, '_pixbuf_cache'):
+            self._pixbuf_cache = {}
+        key = (fname, width, height)
+        if not key in self._pixbuf_cache:
+            fname = os.path.join(SAYWAH_GUI_RESOURCES_PATH, fname)
             if not os.path.isfile(fname):
                 pixbuf = None
             else:
-                pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(fname, 24, 24)
-            self._providers_pixbuf_cache[provider_slug] = pixbuf
-        return self._providers_pixbuf_cache[provider_slug]
+                pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(fname, width, height)
+                print 'loaded', fname
+            self._pixbuf_cache[key] = pixbuf
+        return self._pixbuf_cache[key]
 
 
     # GObject event handlers
@@ -117,17 +126,40 @@ class SaywahGTK(object):
         apath = self._model_accounts.get_value(iaccount, 0)
         account = self._dbus_proxies_cache[apath]
         message = self._entry_message.get_text().decode('utf8')
+
+        def update_message_waiting():
+            if self._sending_message:
+                if not hasattr(self, '_img_btn_next_frame'): # first time in this loop
+                    self._btn_send.set_sensitive(False)
+                    self._img_btn_send_orig_stock = self._img_btn_send.get_stock()
+                    self._img_btn_next_frame = 0
+                if self._img_btn_next_frame == self._n_working_frames - 1:
+                    self._img_btn_next_frame = 0
+                img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, 'working-%02d.png' % self._img_btn_next_frame)
+                self._img_btn_send.set_from_pixbuf(
+                        self._get_pixbuf_from_filename(img_path, 24, 24))
+                self._img_btn_next_frame += 1
+                return True
+            else:
+                self._img_btn_send.set_from_stock(*self._img_btn_send_orig_stock)
+                self._btn_send.set_sensitive(True)
+                del self._img_btn_next_frame
+                del self._img_btn_send_orig_stock
+                return False
+
+        def on_send_message_success():
+            self._sending_message = False
+
+        def on_send_message_error(error):
+            self._sending_message = False
+            raise TODO
+
+        self._sending_message = True
         account.send_message(message, dbus_interface='org.saywah.Account',
-                             reply_handler=self._on_send_message_success,
-                             error_handler=self._on_send_message_error)
-        self._btn_send.set_sensitive(False)
+                             reply_handler=on_send_message_success,
+                             error_handler=on_send_message_error)
+        gobject.timeout_add(50, update_message_waiting)
 
-    def _on_send_message_success(self):
-        self._btn_send.set_sensitive(True)
-
-    def _on_send_message_error(self, error):
-        self._btn_send.set_sensitive(True)
-        raise TODO
 
 
 if __name__ == '__main__':

@@ -274,7 +274,7 @@
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
                     <property name="use_action_appearance">True</property>
-                    <property name="image">image1</property>
+                    <property name="image">img_btn_send</property>
                     <property name="image_position">right</property>
                     <signal name="clicked" handler="on_btn_send_clicked"/>
                   </object>
@@ -298,7 +298,7 @@
       </object>
     </child>
   </object>
-  <object class="GtkImage" id="image1">
+  <object class="GtkImage" id="img_btn_send">
     <property name="visible">True</property>
     <property name="stock">gtk-ok</property>
     <property name="icon-size">4</property>
