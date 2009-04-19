@@ -21,8 +21,9 @@ import glob
 import os
 
 import dbus
-import pygtk
-pygtk.require20()
+import dbus.mainloop.glib
+import gobject
+import pygtk; pygtk.require20()
 import gtk
 import pango
 
@@ -31,8 +32,10 @@ SAYWAH_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
 SAYWAH_GUI_RESOURCES_PATH = os.path.join(SAYWAH_GUI_PATH, u'resources')
 SAYWAH_GTKUI_XML_PATH = os.path.join(SAYWAH_GUI_PATH, u'saywah.ui')
 
-session_bus = dbus.SessionBus()
 
+mainloop = gobject.MainLoop()
+dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+session_bus = dbus.SessionBus()
 
 
 class SaywahGTK(object):
@@ -104,7 +107,7 @@ class SaywahGTK(object):
     # GObject event handlers
 
     def on_win_main_destroy(self, widget):
-        gtk.main_quit()
+        mainloop.quit()
 
     def on_treeview_statuses_size_allocate(self, widget, allocation):
         self._cr_statuses_message.set_property('wrap-width', self._col_statuses_message.get_width() - 5)
@@ -114,8 +117,20 @@ class SaywahGTK(object):
         apath = self._model_accounts.get_value(iaccount, 0)
         account = self._dbus_proxies_cache[apath]
         message = self._entry_message.get_text().decode('utf8')
-        account.send_message(message, dbus_interface='org.saywah.Account')
+        account.send_message(message, dbus_interface='org.saywah.Account',
+                             reply_handler=self._on_send_message_success,
+                             error_handler=self._on_send_message_error)
+        self._btn_send.set_sensitive(False)
 
-saywah_gtk = SaywahGTK()
-gtk.main()
+    def _on_send_message_success(self):
+        self._btn_send.set_sensitive(True)
+
+    def _on_send_message_error(self, error):
+        self._btn_send.set_sensitive(True)
+        raise TODO
+
+
+if __name__ == '__main__':
+    saywah_gtk = SaywahGTK()
+    mainloop.run()
 
