@@ -37,12 +37,24 @@ def parse_args():
             action="store_false", dest="dbus_service", default=True,
             help=u"don't start Saywah DBus service")
 
+    parser.add_option("-v", "--verbose",
+            action="store_true", dest="verbose", default=False,
+            help=u"verbose output")
+
+    parser.add_option("--debug",
+            action="store_true", dest="debug", default=False,
+            help=u"debug output")
+
     return parser.parse_args()
 
 
 def main():
     opts, args = parse_args()
-    saywah.core.conf.init()
+
+    log_level = logging.DEBUG if opts.debug \
+                else logging.INFO if opts.verbose \
+                else None # default
+    saywah.core.conf.init(log_level=log_level)
 
     if opts.dbus_service:
         saywah.core.service.saywah_service.setup()

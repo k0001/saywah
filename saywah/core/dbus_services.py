@@ -23,6 +23,7 @@ import logging
 import dbus
 import dbus.mainloop.glib
 import dbus.service
+import louie
 
 from saywah.core.accounts import Account
 from saywah.core.providers import Provider
@@ -148,8 +149,12 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     def start(cls, connection):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
-        cls.register_accounts(connection, list(Account.objects))
         log.debug(u"Starting %s services" % cls.__name__)
+        cls.register_accounts(connection, list(Account.objects))
+        louie.dispatcher.connect(receiver=cls._on_account_post_add_handler,
+                                 signal=Account.objects.post_add)
+        louie.dispatcher.connect(receiver=cls._on_account_post_remove_handler,
+                                 signal=Account.objects.post_remove)
         cls._started = True
 
     @classmethod
@@ -157,6 +162,10 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
         if cls._started:
             log.debug(u"stoping %s services" % cls.__name__)
             cls.unregister_accounts()
+            louie.dispatcher.disconnect(receiver=cls._on_account_post_add_handler,
+                                        signal=Account.objects.post_add)
+            louie.dispatcher.disconnect(receiver=cls._on_account_post_remove_handler,
+                                        signal=Account.objects.post_remove)
             cls._started = False
 
     @classmethod
@@ -170,6 +179,23 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     @classmethod
     def unregister_accounts(cls):
         cls.registry.clear()
+
+    @classmethod
+    def unregister_account(cls, account):
+        for k,v in cls.register.items():
+            if v._account == account:
+                del cls.register[k]
+                return
+        else:
+            raise KeyError(account)
+
+    @classmethod
+    def _on_account_post_add_handler(cls, named=None):
+        cls.register_account(named['item'])
+
+    @classmethod
+    def _on_account_post_remove_handler(cls, named=None):
+        cls.unregister_account(named['item'])
 
 
     # DBus exposed methods
