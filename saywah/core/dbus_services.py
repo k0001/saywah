@@ -173,8 +173,9 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
         for a in accounts:
             object_path = DBUS_OBJECT_PATHS['provider_account'] % { u'provider': a.provider_slug,
                                                                     u'username': a.slug }
-            ad = AccountDBus(a, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
-            cls.registry[object_path] = ad
+            if not object_path in cls.registry:
+                ad = AccountDBus(a, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
+                cls.registry[object_path] = ad
 
     @classmethod
     def unregister_accounts(cls):
