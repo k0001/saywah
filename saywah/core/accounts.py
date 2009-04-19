@@ -20,6 +20,7 @@
 import logging
 
 from saywah.core import models
+from saywah.core.providers import Provider
 
 
 __all__ = ("Account",)
@@ -41,12 +42,10 @@ class Account(models.Model):
         return u"<%s: %s - %s>" % (self.__class__.__name__, self.provider_slug, self.username)
 
     def _get_provider(self):
-        from saywah.core.service import saywah_service
         if self.provider_slug:
-            return saywah_service.providers[self.provider_slug]
+            return Provider.registry[self.provider_slug]
 
     def _set_provider(self, value):
-        from saywah.core.providers import Provider
         if value is None:
             self.provider_slug = None
         elif isinstance(value, Provider):
