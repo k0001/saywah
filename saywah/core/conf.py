@@ -68,11 +68,12 @@ def load_providers():
     from saywah.providers.twitter import TwitterProvider
     TwitterProvider()
 
-def init():
+def init(log_level=logging.WARNING):
     # this is here so that everything explodes early if we can't write there
     if not os.path.isdir(PATH_ROOT_DIR):
         os.makedirs(PATH_ROOT_DIR)
         log.debug(u"Directory %s created" % PATH_ROOT_DIR)
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=log_level)
     load_providers()
+    load_accounts()
 

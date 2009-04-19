@@ -9,7 +9,7 @@ except ImportError:
 import sys
 
 def get_requires():
-    requires = ['httplib2']
+    requires = ['httplib2', 'louie']
     if sys.version_info < (2, 6):
         requires.append('simplejson')
     return requires
