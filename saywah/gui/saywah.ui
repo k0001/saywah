@@ -2,23 +2,33 @@
 <interface>
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy toplevel-contextual -->
-  <object class="GtkListStore" id="providers">
+  <object class="GtkListStore" id="model_accounts">
     <columns>
-      <!-- column-name pic -->
-      <column type="GdkPixbuf"/>
-      <!-- column-name name -->
+      <!-- column-name account_dbus_object_path -->
       <column type="gchararray"/>
+      <!-- column-name provider_dbus_object_path -->
+      <column type="gchararray"/>
+      <!-- column-name account_username -->
+      <column type="gchararray"/>
+      <!-- column-name account_slug -->
+      <column type="gchararray"/>
+      <!-- column-name provider_name -->
+      <column type="gchararray"/>
+      <!-- column-name provider_slug -->
+      <column type="gchararray"/>
+      <!-- column-name provider_pic -->
+      <column type="GdkPixbuf"/>
     </columns>
   </object>
-  <object class="GtkListStore" id="statuses">
+  <object class="GtkListStore" id="model_statuses">
     <columns>
-      <!-- column-name sender -->
+      <!-- column-name sender_name -->
       <column type="gchararray"/>
       <!-- column-name sender_pic -->
       <column type="GdkPixbuf"/>
       <!-- column-name message -->
       <column type="gchararray"/>
-      <!-- column-name provider -->
+      <!-- column-name provider_name -->
       <column type="gchararray"/>
       <!-- column-name provider_pic -->
       <column type="GdkPixbuf"/>
@@ -29,6 +39,7 @@
     <property name="title" translatable="yes">Saywah</property>
     <property name="default_width">300</property>
     <property name="default_height">500</property>
+    <signal name="destroy" handler="on_win_main_destroy"/>
     <child>
       <object class="GtkVBox" id="vbox1">
         <property name="visible">True</property>
@@ -174,17 +185,18 @@
           <object class="GtkTreeView" id="treeview_statuses">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
-            <property name="model">statuses</property>
+            <property name="model">model_statuses</property>
             <property name="headers_visible">False</property>
+            <signal name="size_allocate" handler="on_treeview_statuses_size_allocate"/>
             <child>
-              <object class="GtkTreeViewColumn" id="status">
+              <object class="GtkTreeViewColumn" id="col_statuses_message">
                 <property name="resizable">True</property>
                 <property name="sizing">fixed</property>
                 <property name="fixed_width">2</property>
-                <property name="title">Status</property>
+                <property name="title">Message</property>
                 <property name="expand">True</property>
                 <child>
-                  <object class="GtkCellRendererText" id="cr_statuses_status"/>
+                  <object class="GtkCellRendererText" id="cr_statuses_message"/>
                   <attributes>
                     <attribute name="markup">2</attribute>
                   </attributes>
@@ -192,7 +204,7 @@
               </object>
             </child>
             <child>
-              <object class="GtkTreeViewColumn" id="Provider">
+              <object class="GtkTreeViewColumn" id="col_statuses_sender_pic">
                 <property name="sizing">autosize</property>
                 <property name="title">Sender Picture</property>
                 <property name="alignment">1</property>
@@ -215,7 +227,7 @@
             <property name="border_width">2</property>
             <property name="orientation">vertical</property>
             <child>
-              <object class="GtkEntry" id="entry_new_status">
+              <object class="GtkEntry" id="entry_message">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="can_default">True</property>
@@ -236,19 +248,19 @@
                 <property name="visible">True</property>
                 <property name="spacing">3</property>
                 <child>
-                  <object class="GtkComboBox" id="combo_providers">
+                  <object class="GtkComboBox" id="combo_accounts">
                     <property name="visible">True</property>
-                    <property name="model">providers</property>
+                    <property name="model">model_accounts</property>
                     <child>
-                      <object class="GtkCellRendererPixbuf" id="cr_providers_pic"/>
+                      <object class="GtkCellRendererPixbuf" id="cr_provider_pic"/>
                       <attributes>
-                        <attribute name="pixbuf">0</attribute>
+                        <attribute name="pixbuf">6</attribute>
                       </attributes>
                     </child>
                     <child>
-                      <object class="GtkCellRendererText" id="cr_providers_name"/>
+                      <object class="GtkCellRendererText" id="cr_account_username"/>
                       <attributes>
-                        <attribute name="text">1</attribute>
+                        <attribute name="text">2</attribute>
                       </attributes>
                     </child>
                   </object>
@@ -264,6 +276,7 @@
                     <property name="use_action_appearance">True</property>
                     <property name="image">image1</property>
                     <property name="image_position">right</property>
+                    <signal name="clicked" handler="on_btn_send_clicked"/>
                   </object>
                   <packing>
                     <property name="expand">False</property>
