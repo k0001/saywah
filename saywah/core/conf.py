@@ -20,6 +20,9 @@ from __future__ import with_statement
 
 import logging
 import os
+import re
+
+import gconf
 try:
     import json
 except ImportError, e:
@@ -32,36 +35,46 @@ __all__ = ('store_current_accounts', 'load_accounts', 'init')
 
 
 log = logging.getLogger(__name__)
+gconf_client = gconf.client_get_default()
 
-PATH_ROOT_DIR = os.path.expanduser(u'~/.saywah')
-PATH_ACCOUNTS_JSON = os.path.join(PATH_ROOT_DIR, u'accounts.json')
+GCONF_PATHS = {
+    "accounts": "/apps/saywah/accounts",
+}
 
-
-def accounts_to_json(accounts, encoding='utf-8', indent=2):
-    d = {u'accounts': [a.to_raw_dict() for a in accounts]}
-    return json.dumps(d, encoding=encoding, indent=indent)
-
-def accounts_from_json(js, encoding='utf-8'):
-    d = json.loads(js, encoding=encoding)
-    return [Account.from_raw_dict(a) for a in d['accounts']]
 
 def store_current_accounts():
-    log.debug(u"Storing current accounts in %s" % PATH_ACCOUNTS_JSON)
-    accounts = list(Account.objects)
-    js = accounts_to_json(accounts)
-    with open(PATH_ACCOUNTS_JSON, 'wb') as f:
-        f.write(js)
+    # should delete old stuff
+    log.debug(u"Storing current accounts in gconf: %s" % GCONF_PATHS["accounts"])
+    gconf_client.recursive_unset(GCONF_PATHS["accounts"], gconf.UNSET_INCLUDING_SCHEMA_NAMES)
+    gconf_client.get_entry(GCONF_PATHS["accounts"], 'C', False).unref()
+    for i,a in enumerate(list(Account.objects)):
+        path = "%s/%03d" % (GCONF_PATHS["accounts"], i)
+        for k,v in a.to_dict(raw=True).items():
+            key = "%s/%s" % (path, k)
+            if v is None:
+                gconf_client.unset(key)
+            elif isinstance(v, unicode):
+                gconf_client.set_value(key, v.encode('utf-8'))
+            else:
+                gconf_client.set_value(key, v)
+    gconf_client.suggest_sync()
 
 def load_accounts():
-    log.debug(u"Loading accounts from %s" % PATH_ACCOUNTS_JSON)
-    if not os.path.isfile(PATH_ACCOUNTS_JSON):
-        log.debug(u"Nothing to load")
-        return
-    with open(PATH_ACCOUNTS_JSON, 'rb') as f:
-        js = f.read()
-    accounts = accounts_from_json(js)
-    Account.objects.update(set(accounts))
-    log.debug(u"%d accounts loaded" % len(accounts))
+    log.debug(u"Loading accounts from gconf: %s" % GCONF_PATHS["accounts"])
+    naccs = 0
+    for path in gconf_client.all_dirs(GCONF_PATHS["accounts"]):
+        attrs = {}
+        for k in Account.get_field_names():
+            try:
+                v = gconf_client.get_value("%s/%s" % (path, k))
+                if isinstance(v, str):
+                    v = v.decode('utf-8')
+                attrs[k] = v
+            except ValueError:
+                attrs[k] = None
+        Account.objects.add(Account.from_dict(attrs))
+        naccs += 1
+    log.debug(u"%d accounts loaded" % naccs)
 
 def load_providers():
     # XXX: unharcode this by discovering all Providers found in saywah.providers package
@@ -70,9 +83,6 @@ def load_providers():
 
 def init(log_level=logging.WARNING):
     # this is here so that everything explodes early if we can't write there
-    if not os.path.isdir(PATH_ROOT_DIR):
-        os.makedirs(PATH_ROOT_DIR)
-        log.debug(u"Directory %s created" % PATH_ROOT_DIR)
     logging.basicConfig(level=log_level)
     load_providers()
     load_accounts()

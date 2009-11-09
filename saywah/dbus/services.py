@@ -205,7 +205,7 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'account'],
                          in_signature='', out_signature='a{ss}')
     def get_details(self):
-        return dict((k, unicode(v)) for (k,v) in self._account.to_raw_dict().items() if k != u'password')
+        return dict((k, unicode(v)) for (k,v) in self._account.to_dict(raw=True).items() if k != u'password')
 
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'account'],
@@ -221,7 +221,7 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
         u'password': property(lambda self: self._account.password),
         u'provider_slug': property(lambda self: self._account.provider_slug),
         u'last_received_message_id': property(lambda self: self._account.last_received_message_id or u""),
-        u'last_updated': property(lambda self: self._account.to_raw_dict()['last_updated'] or u"")
+        u'last_updated': property(lambda self: self._account.to_dict(raw=True)['last_updated'] or u"")
     }
 
 

@@ -74,23 +74,33 @@ class Model(object):
                 if k in kwargs:
                     setattr(self, k, kwargs.pop(k))
 
-    def to_raw_dict(self):
+    @classmethod
+    def get_field_names(cls):
+        return tuple(k for (k,v) in cls.__dict__.items() if isinstance(v, Field))
+
+    def to_dict(self, raw=False):
         ud = {}
         for k,v in self.__class__.__dict__.items():
             if isinstance(v, Field):
-                ud[k] = v.to_raw(getattr(self, k))
+                if raw:
+                    ud[k] = v.to_raw(getattr(self, k))
+                else:
+                    ud[k] = getattr(self, k)
         return ud
 
     @classmethod
-    def from_raw_dict(cls, ud):
+    def from_dict(cls, ud, raw=False):
         obj = cls()
         for k,v in cls.__dict__.items():
             if k in ud and isinstance(v, Field):
-                setattr(obj, k, v.from_raw(ud[k]))
+                if raw:
+                    setattr(obj, k, v.from_raw(ud[k]))
+                else:
+                    setattr(obj, k, ud[k])
         return obj
 
     def __eq__(self, other):
-        return self.__class__ is other.__class__ and self.to_raw_dict() == other.to_raw_dict()
+        return self.__class__ is other.__class__ and self.to_dict(raw=True) == other.to_dict(raw=True)
 
 
 # some basic fields
@@ -116,7 +126,7 @@ class IntegerField(Field):
 
     def to_raw(self, v):
         if v is not None:
-            return unicode(v)
+            return v
 
     def from_raw(self, v):
         if v is not None:
@@ -130,7 +140,7 @@ class FloatField(Field):
 
     def to_raw(self, v):
         if v is not None:
-            return unicode(v)
+            return v
 
     def from_raw(self, v):
         if v is not None:
