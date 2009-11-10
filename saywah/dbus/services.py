@@ -29,17 +29,18 @@ import louie
 from saywah.core.accounts import Account
 from saywah.core.providers import Provider
 from saywah.core.service import saywah_service
+from saywah.core.conf import store_current_accounts
 
 
 __all__ = (u'DBUS_NAME', u'DBUS_OBJECT_PATHS', u'DBUS_INTERFACES',
            u'AccountDBus', u'ProviderDBus', u'SaywahDBus',
            u'saywah_dbus_services')
 
+log = logging.getLogger(__name__)
 
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
-log = logging.getLogger(__name__)
-
+DBUS_CONNECTION = dbus.SessionBus()
 DBUS_BUS_NAME =             u'org.saywah.Saywah'
 DBUS_OBJECT_PATHS = {
     u'saywah':              u'/org/saywah/Saywah',
@@ -91,10 +92,10 @@ class ProviderDBus(dbus.service.Object, DBusPropertiesExposer):
         super(ProviderDBus, self).__init__(*args, **kwargs)
 
     @classmethod
-    def start(cls, connection):
+    def start(cls):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
-        cls.register_providers(connection, Provider.registry.values())
+        cls.register_providers(Provider.registry.values())
         log.debug(u"Starting %s services" % cls.__name__)
         cls._started = True
 
@@ -106,10 +107,10 @@ class ProviderDBus(dbus.service.Object, DBusPropertiesExposer):
             cls._started = False
 
     @classmethod
-    def register_providers(cls, connection, providers):
+    def register_providers(cls, providers):
         for p in providers:
             object_path = DBUS_OBJECT_PATHS['provider'] % { u'provider': p.slug }
-            pd = ProviderDBus(p, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
+            pd = ProviderDBus(p, conn=DBUS_CONNECTION, object_path=object_path, bus_name=DBUS_BUS_NAME)
             cls.registry[object_path] = pd
 
     @classmethod
@@ -147,11 +148,11 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
         super(AccountDBus, self).__init__(*args, **kwargs)
 
     @classmethod
-    def start(cls, connection):
+    def start(cls):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
         log.debug(u"Starting %s services" % cls.__name__)
-        cls.register_accounts(connection, list(Account.objects))
+        cls.register_accounts(list(Account.objects))
         louie.dispatcher.connect(receiver=cls._on_account_post_add_handler,
                                  signal=Account.objects.post_add)
         louie.dispatcher.connect(receiver=cls._on_account_post_remove_handler,
@@ -170,12 +171,12 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
             cls._started = False
 
     @classmethod
-    def register_accounts(cls, connection, accounts):
+    def register_accounts(cls, accounts):
         for a in accounts:
             object_path = DBUS_OBJECT_PATHS['provider_account'] % { u'provider': a.provider_slug,
                                                                     u'username': a.slug }
             if not object_path in cls.registry:
-                ad = AccountDBus(a, conn=connection, object_path=object_path, bus_name=DBUS_BUS_NAME)
+                ad = AccountDBus(a, conn=DBUS_CONNECTION, object_path=object_path, bus_name=DBUS_BUS_NAME)
                 cls.registry[object_path] = ad
 
     @classmethod
@@ -193,11 +194,11 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
 
     @classmethod
     def _on_account_post_add_handler(cls, named=None):
-        cls.register_account(named['item'])
+        cls.register_accounts([named['item']])
 
     @classmethod
     def _on_account_post_remove_handler(cls, named=None):
-        cls.unregister_account(named['item'])
+        cls.unregister_accounts([named['item']])
 
 
     # DBus exposed methods
@@ -234,12 +235,12 @@ class SaywahDBus(dbus.service.Object):
         super(SaywahDBus, self).__init__(*args, **kwargs)
 
     @classmethod
-    def start(cls, connection):
+    def start(cls):
         if cls._started:
             raise RuntimeError(u'%s services already started' % cls.__name__)
         log.debug(u"Starting %s services" % cls.__name__)
         cls._instance = SaywahDBus(saywah_service,
-                                   conn=connection,
+                                   conn=DBUS_CONNECTION,
                                    object_path=DBUS_OBJECT_PATHS['saywah'],
                                    bus_name=DBUS_BUS_NAME)
         cls._started = True
@@ -264,6 +265,18 @@ class SaywahDBus(dbus.service.Object):
     def get_accounts(self):
         return AccountDBus.registry.keys()
 
+    @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
+                         in_signature='ss', out_signature='')
+    def add_account(self, provider_slug, account_username):
+        for a in Account.objects:
+            if a.provider_slug == provider_slug and a.username == account_username:
+                raise ValueError(u"Account username '%s' for service provider '%s' already exists" % (
+                                        account_username, provider_slug))
+        a = Account(provider_slug=provider_slug, username=account_username)
+        Account.objects.add(a)
+        store_current_accounts()
+        log.info(u"New '%s' account '%s' added" % (provider_slug, account_username))
+
 
 class saywah_dbus_services(object):
     _started = False
@@ -274,13 +287,12 @@ class saywah_dbus_services(object):
         if cls._started:
             raise RuntimeError(u'DBus service already started')
         log.info(u"Starting all Saywah services")
-        conn = dbus.SessionBus()
-        cls._bus_name = dbus.service.BusName(DBUS_BUS_NAME, conn)
+        cls._bus_name = dbus.service.BusName(DBUS_BUS_NAME, DBUS_CONNECTION)
         log.info("DBus services using bus name: %s" % DBUS_BUS_NAME)
         try:
-            SaywahDBus.start(conn)
-            ProviderDBus.start(conn)
-            AccountDBus.start(conn)
+            SaywahDBus.start()
+            ProviderDBus.start()
+            AccountDBus.start()
         except Exception, e:
             log.error(u"Starting all Saywah services failed")
             cls.stop()
