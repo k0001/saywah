@@ -39,19 +39,15 @@ class SignalingSet(object):
         return u'<%s %s>' % (self.__class__.__name__, list(self._s))
 
     def add(self, item):
-        if item in self._s:
-            raise KeyError(item)
-        louie.send(self.pre_add, sender=self, named={u'item': item})
-        self._s.add(item)
-        louie.send(self.post_add, sender=self, named={u'item': item})
+        if not item in self._s:
+            louie.send(self.pre_add, sender=self, named={u'item': item})
+            self._s.add(item)
+            louie.send(self.post_add, sender=self, named={u'item': item})
 
     def update(self, *others):
         for iterable in others:
             for item in iterable:
-                try:
-                    self.add(item)
-                except KeyError, e:
-                    pass
+                self.add(item)
 
     def remove(self, item):
         if not item in self:
