@@ -99,6 +99,9 @@ class Model(object):
                     setattr(obj, k, ud[k])
         return obj
 
+    def __hash__(self):
+        return hash(tuple(self.to_dict(raw=True).items()))
+
     def __eq__(self, other):
         return self.__class__ is other.__class__ and self.to_dict(raw=True) == other.to_dict(raw=True)
 
