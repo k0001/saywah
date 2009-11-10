@@ -79,8 +79,8 @@ class SaywahGTK(object):
         self._model_providers.clear()
         providers_paths = self._dsaywah.get_providers(dbus_interface='org.saywah.Saywah')
         for ppath in providers_paths:
-            provider = self._dbus_proxies_cache.setdefault(ppath,
-                    session_bus.get_object('org.saywah.Saywah', ppath))
+            provider = session_bus.get_object('org.saywah.Saywah', ppath)
+            self._dbus_proxies_cache[ppath] = provider
             pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
             self._model_providers.append([
                     ppath,
@@ -137,9 +137,15 @@ class SaywahGTK(object):
         dlg_account_add = self._builder.get_object('dlg_account_add')
         response = dlg_account_add.run()
         if response == gtk.RESPONSE_OK:
-            print 'OK'
-        elif response == gtk.RESPONSE_CANCEL:
-            print 'CANCEL'
+            iprovider = combo_providers.get_active_iter()
+            pslug = self._model_providers.get_value(iprovider, 1)
+            username = entry_username.get_text().decode('utf8')
+            password = entry_password.get_text().decode('utf8')
+            apath = self._dsaywah.add_account(pslug, username, dbus_interface='org.saywah.Saywah')
+            account = session_bus.get_object('org.saywah.Saywah', apath)
+            self._dbus_proxies_cache[apath] = account
+            account.Set('WTF?', 'password', password)
+            self._reload_model_accounts()
         dlg_account_add.hide()
 
 

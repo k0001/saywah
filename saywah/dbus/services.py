@@ -74,6 +74,7 @@ class DBusPropertiesExposer(object):
     def Set(self, interface_name, property_name, value):
         try:
             prop = self._dbus_properties[property_name].fset(self, value)
+            store_current_accounts() # Meh... sucks to be here :P
         except (KeyError, TypeError), e:
             raise AttributeError(property_name)
 
@@ -219,7 +220,8 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     _dbus_properties = {
         u'slug': property(lambda self: self._account.slug),
         u'username': property(lambda self: self._account.username),
-        u'password': property(lambda self: self._account.password),
+        u'password': property(lambda self: self._account.password,
+                              lambda self, v: setattr(self._account, 'password', v)),
         u'provider_slug': property(lambda self: self._account.provider_slug),
         u'last_received_message_id': property(lambda self: self._account.last_received_message_id or u""),
         u'last_updated': property(lambda self: self._account.to_dict(raw=True)['last_updated'] or u"")
@@ -266,7 +268,7 @@ class SaywahDBus(dbus.service.Object):
         return AccountDBus.registry.keys()
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
-                         in_signature='ss', out_signature='')
+                         in_signature='ss', out_signature='s')
     def add_account(self, provider_slug, account_username):
         for a in Account.objects:
             if a.provider_slug == provider_slug and a.username == account_username:
@@ -276,6 +278,8 @@ class SaywahDBus(dbus.service.Object):
         Account.objects.add(a)
         store_current_accounts()
         log.info(u"New '%s' account '%s' added" % (provider_slug, account_username))
+        return DBUS_OBJECT_PATHS['provider_account'] % { u'provider': provider_slug,
+                                                         u'username': account_username }
 
 
 class saywah_dbus_services(object):
