@@ -46,8 +46,9 @@ def store_current_accounts():
     # should delete old stuff
     log.debug(u"Storing current accounts in gconf: %s" % GCONF_PATHS["accounts"])
     gconf_client.recursive_unset(GCONF_PATHS["accounts"], gconf.UNSET_INCLUDING_SCHEMA_NAMES)
-    gconf_client.get_entry(GCONF_PATHS["accounts"], 'C', False).unref()
+    gconf_client.suggest_sync()
     for i,a in enumerate(list(Account.objects)):
+        log.debug(u"Saving '%s' account '%s'" % (a.provider_slug, a.username))
         path = "%s/%03d" % (GCONF_PATHS["accounts"], i)
         for k,v in a.to_dict(raw=True).items():
             key = "%s/%s" % (path, k)
