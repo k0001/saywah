@@ -43,6 +43,8 @@ class SaywahGTK(object):
         super(SaywahGTK, self).__init__()
         self._builder = gtk.Builder()
         self._builder.add_from_file(SAYWAH_GTKUI_XML_PATH)
+        self._dsaywah = session_bus.get_object('org.saywah.Saywah', '/org/saywah/Saywah')
+        self._dbus_proxies_cache = {}
         self._reload_model_accounts()
         self._prepare_treeview_statuses()
         self._prepare_win_main()
@@ -52,14 +54,12 @@ class SaywahGTK(object):
         self._win_main.show_all()
 
     def _reload_model_accounts(self):
-        self._dbus_proxies_cache = {}
         self._model_accounts = self._builder.get_object(u'model_accounts')
         self._model_accounts.clear()
-        dsaywah = session_bus.get_object('org.saywah.Saywah', '/org/saywah/Saywah')
-        providers_paths = dsaywah.get_providers(dbus_interface='org.saywah.Saywah')
+        providers_paths = self._dsaywah.get_providers(dbus_interface='org.saywah.Saywah')
         for ppath in providers_paths:
-            provider = session_bus.get_object('org.saywah.Saywah', ppath)
-            self._dbus_proxies_cache[ppath] = provider
+            provider = self._dbus_proxies_cache.setdefault(ppath,
+                    session_bus.get_object('org.saywah.Saywah', ppath))
             pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
             for apath in provider.get_accounts(dbus_interface='org.saywah.Provider'):
                 account = session_bus.get_object('org.saywah.Saywah', apath)
@@ -73,6 +73,20 @@ class SaywahGTK(object):
                         pprops['name'],
                         pprops['slug'],
                         self._get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
+
+    def _reload_model_providers(self):
+        self._model_providers = self._builder.get_object(u'model_providers')
+        self._model_providers.clear()
+        providers_paths = self._dsaywah.get_providers(dbus_interface='org.saywah.Saywah')
+        for ppath in providers_paths:
+            provider = self._dbus_proxies_cache.setdefault(ppath,
+                    session_bus.get_object('org.saywah.Saywah', ppath))
+            pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
+            self._model_providers.append([
+                    ppath,
+                    pprops['slug'],
+                    pprops['name'],
+                    self._get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
 
     def _prepare_treeview_statuses(self):
         self._treeview_statuses = self._builder.get_object(u'treeview_statuses')
@@ -111,11 +125,31 @@ class SaywahGTK(object):
             self._pixbuf_cache[key] = pixbuf
         return self._pixbuf_cache[key]
 
+    def _show_dlg_account_add(self):
+        self._reload_model_providers()
+        combo_providers = self._builder.get_object('combo_providers')
+        combo_providers.set_active(0)
+        combo_providers.grab_focus()
+        entry_username = self._builder.get_object('entry_username')
+        entry_username.set_text('')
+        entry_password = self._builder.get_object('entry_password')
+        entry_password.set_text('')
+        dlg_account_add = self._builder.get_object('dlg_account_add')
+        response = dlg_account_add.run()
+        if response == gtk.RESPONSE_OK:
+            print 'OK'
+        elif response == gtk.RESPONSE_CANCEL:
+            print 'CANCEL'
+        dlg_account_add.hide()
+
 
     # GObject event handlers
 
-    def on_win_main_destroy(self, widget):
+    def on_quit(self, widget):
         mainloop.quit()
+
+    def on_menu_accounts_add_activate(self, widget):
+        self._show_dlg_account_add()
 
     def on_treeview_statuses_size_allocate(self, widget, allocation):
         self._cr_statuses_message.set_property('wrap-width', self._col_statuses_message.get_width() - 5)
