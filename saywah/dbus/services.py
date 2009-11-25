@@ -123,13 +123,13 @@ class ProviderDBus(dbus.service.Object, DBusPropertiesExposer):
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'provider'],
                          in_signature='', out_signature='as')
-    def get_features(self):
+    def GetFeatures(self):
         return self._provider.features
 
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'provider'],
                          in_signature='', out_signature='as')
-    def get_accounts(self):
+    def GetAccounts(self):
         return AccountDBus.registry.keys()
 
 
@@ -206,13 +206,13 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'account'],
                          in_signature='', out_signature='a{ss}')
-    def get_details(self):
+    def GetDetails(self):
         return dict((k, unicode(v)) for (k,v) in self._account.to_dict(raw=True).items() if k != u'password')
 
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'account'],
                          in_signature='s', out_signature='')
-    def send_message(self, message):
+    def SendMessage(self, message):
         self._account.provider.send_message(self._account, message)
 
 
@@ -259,17 +259,17 @@ class SaywahDBus(dbus.service.Object):
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
                          in_signature='', out_signature='as')
-    def get_providers(self):
+    def GetProviders(self):
         return ProviderDBus.registry.keys()
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
                          in_signature='', out_signature='as')
-    def get_accounts(self):
+    def GetAccounts(self):
         return AccountDBus.registry.keys()
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES[u'saywah'],
                          in_signature='ss', out_signature='s')
-    def add_account(self, provider_slug, account_username):
+    def AddAccount(self, provider_slug, account_username):
         for a in Account.objects:
             if a.provider_slug == provider_slug and a.username == account_username:
                 raise ValueError(u"Account username '%s' for service provider '%s' already exists" % (

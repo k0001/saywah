@@ -61,7 +61,7 @@ class SaywahGTK(object):
             provider = self._dbus_proxies_cache.setdefault(ppath,
                     session_bus.get_object('org.saywah.Saywah', ppath))
             pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
-            for apath in provider.get_accounts(dbus_interface='org.saywah.Provider'):
+            for apath in provider.GetAccounts(dbus_interface='org.saywah.Provider'):
                 account = session_bus.get_object('org.saywah.Saywah', apath)
                 self._dbus_proxies_cache[apath] = account
                 aprops = account.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
@@ -77,7 +77,7 @@ class SaywahGTK(object):
     def _reload_model_providers(self):
         self._model_providers = self._builder.get_object(u'model_providers')
         self._model_providers.clear()
-        providers_paths = self._dsaywah.get_providers(dbus_interface='org.saywah.Saywah')
+        providers_paths = self._dsaywah.GetProviders(dbus_interface='org.saywah.Saywah')
         for ppath in providers_paths:
             provider = session_bus.get_object('org.saywah.Saywah', ppath)
             self._dbus_proxies_cache[ppath] = provider
@@ -141,7 +141,7 @@ class SaywahGTK(object):
             pslug = self._model_providers.get_value(iprovider, 1)
             username = entry_username.get_text().decode('utf8')
             password = entry_password.get_text().decode('utf8')
-            apath = self._dsaywah.add_account(pslug, username, dbus_interface='org.saywah.Saywah')
+            apath = self._dsaywah.AddAccount(pslug, username, dbus_interface='org.saywah.Saywah')
             account = session_bus.get_object('org.saywah.Saywah', apath)
             self._dbus_proxies_cache[apath] = account
             account.Set('WTF?', 'password', password)
@@ -194,7 +194,7 @@ class SaywahGTK(object):
             raise TODO
 
         self._sending_message = True
-        account.send_message(message, dbus_interface='org.saywah.Account',
+        account.SendMessage(message, dbus_interface='org.saywah.Account',
                              reply_handler=on_send_message_success,
                              error_handler=on_send_message_error)
         gobject.timeout_add(50, update_message_waiting)
