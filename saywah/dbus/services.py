@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
 DBUS_CONNECTION = dbus.SessionBus()
-DBUS_BUS_NAME =             'org.saywah.Saywah'
+DBUS_BUS_NAME =            'org.saywah.Saywah'
 DBUS_OBJECT_PATHS = {
     'saywah':              '/org/saywah/Saywah',
     'providers':           '/org/saywah/Saywah/providers',
@@ -143,6 +143,11 @@ class ProviderDBus(dbus.service.Object, DBusPropertiesExposer):
     def GetFeatures(self):
         return self._provider.features
 
+    @dbus.service.method(dbus_interface=DBUS_INTERFACES['provider'], in_signature='', out_signature='as')
+    def GetAccounts(self):
+        for account in self._saywah_service.account_manager.accounts.values():
+            if account.provider_slug == self._provider.slug:
+                yield DBUS_OBJECT_PATHS['account'] % {'account_uuid': account.uuid.replace('-', '_')}
 
 class AccountsDBus(dbus.service.Object):
     """Accounts collection DBus Object"""
@@ -244,6 +249,7 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
 
     # DBusPropertiesExposer properties
     _dbus_properties = {
+        'uuid': property(lambda self: self._account.uuid),
         'username': property(lambda self: self._account.username),
         'password': property(lambda self: '************', # we are not telling!
                               lambda self, v: setattr(self._account, 'password', v)),

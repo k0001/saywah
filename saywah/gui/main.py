@@ -18,6 +18,7 @@
 
 
 import glob
+import logging
 import os
 
 import dbus
@@ -28,23 +29,23 @@ import gtk
 import pango
 
 
+mainloop = gobject.MainLoop()
+dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
 SAYWAH_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
 SAYWAH_GUI_RESOURCES_PATH = os.path.join(SAYWAH_GUI_PATH, u'resources')
 SAYWAH_GTKUI_XML_PATH = os.path.join(SAYWAH_GUI_PATH, u'saywah.ui')
 
+DBUS_CONNECTION = dbus.SessionBus()
+DBUS_BUS_NAME = 'org.saywah.Saywah'
 
-mainloop = gobject.MainLoop()
-dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-session_bus = dbus.SessionBus()
+log = logging.getLogger(__name__)
 
 
 class SaywahGTK(object):
     def __init__(self):
-        super(SaywahGTK, self).__init__()
         self._builder = gtk.Builder()
         self._builder.add_from_file(SAYWAH_GTKUI_XML_PATH)
-        self._dsaywah = session_bus.get_object('org.saywah.Saywah', '/org/saywah/Saywah')
-        self._dbus_proxies_cache = {}
         self._reload_model_accounts()
         self._prepare_treeview_statuses()
         self._prepare_win_main()
@@ -56,20 +57,19 @@ class SaywahGTK(object):
     def _reload_model_accounts(self):
         self._model_accounts = self._builder.get_object(u'model_accounts')
         self._model_accounts.clear()
-        providers_paths = self._dsaywah.get_providers(dbus_interface='org.saywah.Saywah')
+        providers = DBUS_CONNECTION.get_object(DBUS_BUS_NAME, '/org/saywah/Saywah/providers')
+        providers_paths = providers.GetProviders(dbus_interface='org.saywah.Providers')
         for ppath in providers_paths:
-            provider = self._dbus_proxies_cache.setdefault(ppath,
-                    session_bus.get_object('org.saywah.Saywah', ppath))
-            pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
+            provider = DBUS_CONNECTION.get_object(DBUS_BUS_NAME, ppath)
+            pprops = provider.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
             for apath in provider.GetAccounts(dbus_interface='org.saywah.Provider'):
-                account = session_bus.get_object('org.saywah.Saywah', apath)
-                self._dbus_proxies_cache[apath] = account
+                account = DBUS_CONNECTION.get_object(DBUS_BUS_NAME, apath)
                 aprops = account.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
                 self._model_accounts.append([
                         apath,
                         ppath,
                         aprops['username'],
-                        aprops['slug'],
+                        aprops['uuid'],
                         pprops['name'],
                         pprops['slug'],
                         self._get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
@@ -77,10 +77,10 @@ class SaywahGTK(object):
     def _reload_model_providers(self):
         self._model_providers = self._builder.get_object(u'model_providers')
         self._model_providers.clear()
-        providers_paths = self._dsaywah.GetProviders(dbus_interface='org.saywah.Saywah')
+        providers = DBUS_CONNECTION.get_object(DBUS_BUS_NAME, '/org/saywah/Saywah/providers')
+        providers_paths = providers.GetProviders(dbus_interface='org.saywah.Providers')
         for ppath in providers_paths:
-            provider = session_bus.get_object('org.saywah.Saywah', ppath)
-            self._dbus_proxies_cache[ppath] = provider
+            provider = DBUS_CONNECTION.get_object(DBUS_BUS_NAME, ppath)
             pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
             self._model_providers.append([
                     ppath,
@@ -138,13 +138,16 @@ class SaywahGTK(object):
         response = dlg_account_add.run()
         if response == gtk.RESPONSE_OK:
             iprovider = combo_providers.get_active_iter()
-            pslug = self._model_providers.get_value(iprovider, 1)
+            provider_slug = self._model_providers.get_value(iprovider, 1)
             username = entry_username.get_text().decode('utf8')
             password = entry_password.get_text().decode('utf8')
-            apath = self._dsaywah.AddAccount(pslug, username, dbus_interface='org.saywah.Saywah')
-            account = session_bus.get_object('org.saywah.Saywah', apath)
-            self._dbus_proxies_cache[apath] = account
-            account.Set('WTF?', 'password', password)
+            accounts = DBUS_CONNECTION.get_object('org.saywah.Saywah', '/org/saywah/Saywah/accounts')
+            apath = accounts.AddAccount(provider_slug, username, dbus_interface='org.saywah.Accounts')
+            account = DBUS_CONNECTION.get_object('org.saywah.Saywah', apath)
+            account.Set('', 'password', password, dbus_interface='org.freedesktop.DBus.Properties')
+            accounts.StoreAccounts(dbus_interface='org.saywah.Accounts')
+            uuid = account.Get('', 'uuid', dbus_interface='org.freedesktop.DBus.Properties')
+            log.info(u"Added %s account %s [uuid:%s]" % (provider_slug, username, uuid))
             self._reload_model_accounts()
         dlg_account_add.hide()
 
@@ -163,7 +166,7 @@ class SaywahGTK(object):
     def on_btn_send_clicked(self, widget):
         iaccount = self._combo_accounts.get_active_iter()
         apath = self._model_accounts.get_value(iaccount, 0)
-        account = self._dbus_proxies_cache[apath]
+        account = DBUS_CONNECTION.get_object('org.saywah.Saywah', apath)
         message = self._entry_message.get_text().decode('utf8')
 
         def update_message_waiting():
@@ -175,8 +178,7 @@ class SaywahGTK(object):
                 if self._img_btn_next_frame == self._n_working_frames - 1:
                     self._img_btn_next_frame = 0
                 img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, 'working-%02d.png' % self._img_btn_next_frame)
-                self._img_btn_send.set_from_pixbuf(
-                        self._get_pixbuf_from_filename(img_path, 24, 24))
+                self._img_btn_send.set_from_pixbuf(self._get_pixbuf_from_filename(img_path, 24, 24))
                 self._img_btn_next_frame += 1
                 return True
             else:
@@ -195,8 +197,9 @@ class SaywahGTK(object):
 
         self._sending_message = True
         account.SendMessage(message, dbus_interface='org.saywah.Account',
-                             reply_handler=on_send_message_success,
-                             error_handler=on_send_message_error)
+                            reply_handler=on_send_message_success,
+                            error_handler=on_send_message_error)
+        log.info(u"Sending message: %s" % message)
         gobject.timeout_add(50, update_message_waiting)
 
 

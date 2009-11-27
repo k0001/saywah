@@ -10,7 +10,7 @@
       <column type="gchararray"/>
       <!-- column-name account_username -->
       <column type="gchararray"/>
-      <!-- column-name account_slug -->
+      <!-- column-name account_uuid -->
       <column type="gchararray"/>
       <!-- column-name provider_name -->
       <column type="gchararray"/>
