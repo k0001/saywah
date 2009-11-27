@@ -20,7 +20,7 @@
 import logging
 
 
-__all__ = ('Provider', 'ProviderError', 'ProviderRemoteError')
+__all__ = 'Provider', 'ProviderError', 'ProviderRemoteError', 'ProviderManager',
 
 
 log = logging.getLogger(__name__)
@@ -33,21 +33,13 @@ class ProviderError(Exception):
 class ProviderRemoteError(ProviderError):
     """Raised when communication with a remote provider fails somehow."""
 
+
 class Provider(object):
+    """A (microblogging) service provider"""
     # A pretty name for this provider
     name = u''
     # A short slug for this provider
     slug = u''
-    # provider singletons are kept here
-    registry = {}
-
-    def __new__(cls, *args, **kwargs):
-        # ensure singletons for each provider are available in Provider.registry
-        if not cls.slug in Provider.registry:
-            obj = super(Provider, cls).__new__(cls, *args, **kwargs)
-            Provider.registry[cls.slug] = obj
-            log.debug(u"%s registered" % cls.__name__)
-        return Provider.registry[cls.slug]
 
     @property
     def features(self):
@@ -63,4 +55,25 @@ class Provider(object):
     def get_new_messages(self, account):
         raise NotImplementedError()
     get_new_messages._disabled = True
+
+
+class ProviderManager(object):
+    """Manager for Provider objects"""
+    def __init__(self):
+        self._registry = {}
+
+    @property
+    def providers(self):
+        return self._registry.copy()
+
+    def register(self, provider):
+        if provider.slug in self._registry:
+            raise KeyError(u"Provider '%s' already registered" % provider.slug)
+        self._registry[provider.slug] = provider
+
+    def unregister(self, key):
+        del self._registry[provider.slug]
+
+    def unregister_all(self):
+        self._registry.clear()
 

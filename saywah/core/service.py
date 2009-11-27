@@ -18,37 +18,33 @@
 
 
 import logging
-import os
-
-from saywah.core import conf
 
 
-__all__ = ('SaywahService', 'SaywahServiceDBusWrapper', 'saywah_service')
+__all__ = 'SaywahService',
 
 
 log = logging.getLogger(__name__)
 
 
-class SaywahService(object):
-    def __init__(self):
-        super(SaywahService, self).__init__()
-        self._ready = False
+class BaseSaywahService(object):
+    """Internal Saywah API services base implementation"""
+    account_manager = None
+    provider_manager = None
+    config_manager = None
 
     def setup(self):
-        if not self.ready:
-            log.info(u"Setting up SaywahService")
-            self.load_accounts()
+        log.info(u"Setting up SaywahService")
+        self.reload_providers()
+        self.reload_accounts()
 
-    def save_accounts(self):
-        conf.store_current_accounts()
+    def reload_providers(self):
+        self.provider_manager.unregister_all()
+        self.config_manager.load_providers(self.provider_manager)
 
-    def load_accounts(self):
-        conf.load_accounts()
+    def reload_accounts(self):
+        self.account_manager.unregister_all()
+        self.config_manager.load_accounts(self.account_manager)
 
-    @property
-    def ready(self):
-        return self._ready
-
-# Our SaywahService singleton
-saywah_service = SaywahService()
+    def store_accounts(self):
+        self.config_manager.store_accounts(self.account_manager)
 

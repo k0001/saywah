@@ -18,10 +18,10 @@
 
 
 import logging
+import uuid
 
 from saywah.core import models
 from saywah.core.providers import Provider
-from saywah.core import signals
 
 
 __all__ = ("Account",)
@@ -31,32 +31,46 @@ log = logging.getLogger(__name__)
 
 
 class Account(models.Model):
+    # provider singletons are kept here
+    _registry = {}
+
+    uuid = models.UnicodeField()
     username = models.UnicodeField()
     password = models.UnicodeField()
     provider_slug = models.UnicodeField()
     last_received_message_id = models.UnicodeField()
     last_updated = models.DatetimeField()
 
-    objects = signals.SignalingSet()
-
     def __repr__(self):
         return u"<%s: %s - %s>" % (self.__class__.__name__, self.provider_slug, self.username)
 
-    def _get_provider(self):
-        if self.provider_slug:
-            return Provider.registry[self.provider_slug]
 
-    def _set_provider(self, value):
-        if value is None:
-            self.provider_slug = None
-        elif isinstance(value, Provider):
-            self.provider_slug = value.slug
-        else:
-            raise TypeError(value)
+class AccountManager(object):
+    """Manager for Account objects"""
 
-    provider = property(_get_provider, _set_provider)
+    def __init__(self):
+        self._registry = {}
 
     @property
-    def slug(self):
-        return self.username.replace(u' ', u'+')
+    def accounts(self):
+        return self._registry.copy()
+
+    def register(self, account):
+        if account.uuid in self._registry:
+            raise KeyError(u"Account '%s' already registered" % account.uuid)
+        self._registry[account.uuid] = account
+
+    def unregister(self, key):
+        del self._registry[account.uuid]
+
+    def unregister_all(self):
+        self._registry.clear()
+
+    def create(self, provider_slug, username, **kwargs):
+        account_type = Account # XXX we should support per-provider account types sometime later
+        account = account_type(uuid=unicode(uuid.uuid4()), provider_slug=provider_slug, username=username)
+        for k,v in kwargs.items():
+            if k in account_type.get_field_names():
+                setattr(account, k, v)
+        return account
 
