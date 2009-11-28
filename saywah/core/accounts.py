@@ -31,9 +31,6 @@ log = logging.getLogger(__name__)
 
 
 class Account(models.Model):
-    # provider singletons are kept here
-    _registry = {}
-
     uuid = models.UnicodeField()
     username = models.UnicodeField()
     password = models.UnicodeField()
