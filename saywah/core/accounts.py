@@ -31,12 +31,18 @@ log = logging.getLogger(__name__)
 
 
 class Account(models.Model):
-    uuid = models.UnicodeField()
     username = models.UnicodeField()
     password = models.UnicodeField()
     provider_slug = models.UnicodeField()
     last_received_message_id = models.UnicodeField()
     last_updated = models.DatetimeField()
+
+    _uuid_namespace = uuid.UUID('4c3a97ad-8a3f-4542-98b8-6aa98a3a15aa')
+
+    @property
+    def uuid(self):
+        s = self.provider_slug.encode('utf8') + self.username.encode('utf8')
+        return unicode(uuid.uuid5(self.__class__._uuid_namespace, s))
 
     def __repr__(self):
         return u"<%s: %s - %s>" % (self.__class__.__name__, self.provider_slug, self.username)
@@ -65,9 +71,6 @@ class AccountManager(object):
 
     def create(self, provider_slug, username, **kwargs):
         account_type = Account # XXX we should support per-provider account types sometime later
-        account = account_type(uuid=unicode(uuid.uuid4()), provider_slug=provider_slug, username=username)
-        for k,v in kwargs.items():
-            if k in account_type.get_field_names():
-                setattr(account, k, v)
+        account = account_type(provider_slug=provider_slug, username=username, **kwargs)
         return account
 

@@ -63,11 +63,20 @@ def get_pixbuf_from_filename(fname, width, height):
     return _pixbuf_cache[key]
 
 
+def osd_notify(title, body, icon_data=""):
+    n = DBUS_CONNECTION.get_object('org.freedesktop.Notifications', '/org/freedesktop/Notifications')
+    return n.Notify(u"Saywah", 0, icon_data, title, body, '', {}, -1,
+                    dbus_interface='org.freedesktop.Notifications')
+
+
 class SaywahGTK(object):
     def __init__(self):
         self._builder = gtk.Builder()
         self._builder.add_from_file(SAYWAH_GTKUI_XML_PATH)
         self._builder.connect_signals(self)
+
+        self._loaded_providers = set()
+        self._loaded_accounts = set()
 
         self.reload_model_providers()
         self.reload_model_accounts()
@@ -75,28 +84,38 @@ class SaywahGTK(object):
         win_main = self._builder.get_object(u'win_main')
         win_main.show_all()
 
+    def _on_dbus_MessageArrived(self, message):
+        osd_notify(unicode(message['sender_nick']), unicode(message['text']))
+
     def reload_model_accounts(self):
         m = self._builder.get_object('model_accounts')
         m.clear()
-        providers = get_saywah_dbus_object('/org/saywah/Saywah/providers')
-        for ppath in providers.GetProviders(dbus_interface='org.saywah.Providers'):
+        self.reload_model_providers()
+        for ppath in self._loaded_providers:
             provider = get_saywah_dbus_object(ppath)
             pprops = provider.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
             for apath in provider.GetAccounts(dbus_interface='org.saywah.Provider'):
-                account = get_saywah_dbus_object(apath)
-                aprops = account.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
-                m.append([apath, ppath, aprops['username'], aprops['uuid'], pprops['name'], pprops['slug'],
-                          get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
+                if not apath in self._loaded_accounts:
+                    account = get_saywah_dbus_object(apath)
+                    aprops = account.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
+                    m.append([apath, ppath, aprops['username'], aprops['uuid'], pprops['name'], pprops['slug'],
+                              get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
+                    account.connect_to_signal('MessageArrived', self._on_dbus_MessageArrived,
+                                               dbus_interface='org.saywah.Account')
+                    account.EnableMessageFetching(True, dbus_interface='org.saywah.Account')
+                    self._loaded_accounts.add(apath)
 
     def reload_model_providers(self):
         m = self._builder.get_object(u'model_providers')
         m.clear()
         providers = get_saywah_dbus_object('/org/saywah/Saywah/providers')
         for ppath in providers.GetProviders(dbus_interface='org.saywah.Providers'):
-            provider = get_saywah_dbus_object(ppath)
-            pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
-            m.append([ppath, pprops['slug'], pprops['name'],
-                      get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
+            if not ppath in self._loaded_providers:
+                provider = get_saywah_dbus_object(ppath)
+                pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
+                m.append([ppath, pprops['slug'], pprops['name'],
+                          get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
+                self._loaded_providers.add(ppath)
 
     def on_quit(self, widget):
         mainloop.quit()

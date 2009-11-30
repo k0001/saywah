@@ -18,6 +18,8 @@
 
 
 import logging
+import threading
+import time
 
 import dbus
 import dbus.mainloop.glib
@@ -49,6 +51,27 @@ DBUS_INTERFACES = {
     'provider':            'org.saywah.Provider',
     'accounts':            'org.saywah.Accounts',
     'account':             'org.saywah.Account' }
+
+
+class AccountMessagesFetcherThread(threading.Thread):
+    def __init__(self, account, provider, callback):
+        self._account = account
+        self._provider = provider
+        self._callback = callback
+        self._seen_messages = set()
+        super(AccountMessagesFetcherThread, self).__init__()
+
+    def run(self):
+        while True:
+            for m in self._provider.get_new_messages(self._account):
+                if not m.uuid in self._seen_messages:
+                    self._seen_messages.add(m.uuid)
+                    self._callback(m)
+            log.debug(u"Waiting %d seconds before next Account %s messages update" \
+                        % (self._provider.suggested_wait_time, self._account))
+            time.sleep(self._provider.suggested_wait_time)
+
+account_messages_fetcher_threads = {}
 
 
 class ProvidersDBus(dbus.service.Object):
@@ -245,18 +268,24 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     def __init__(self, saywah_service, account, *args, **kwargs):
         self._saywah_service = saywah_service
         self._account = account
+        self._last_messages = []
         super(AccountDBus, self).__init__(*args, **kwargs)
 
     # DBusPropertiesExposer properties
     _dbus_properties = {
         'uuid': property(lambda self: self._account.uuid),
         'username': property(lambda self: self._account.username),
-        'password': property(lambda self: '************', # we are not telling!
-                              lambda self, v: setattr(self._account, 'password', v)),
+        'password': property(lambda self: self._account.password,
+                             lambda self, v: setattr(self._account, 'password', v)),
         'provider_slug': property(lambda self: self._account.provider_slug),
         'last_received_message_id': property(lambda self: self._account.last_received_message_id or u""),
         'last_updated': property(lambda self: self._account.to_dict(raw=True)['last_updated'] or u"")
     }
+
+    def _new_message_fetched_callback(self, message):
+        d = message.to_dict(raw=True)
+        d['uuid'] = message.uuid
+        self.MessageArrived(d)
 
 
     # DBus exposed methods
@@ -265,6 +294,27 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     def SendMessage(self, message):
         provider = self._saywah_service.provider_manager.providers[self._account.provider_slug]
         provider.send_message(self._account, message)
+
+    @dbus.service.method(dbus_interface=DBUS_INTERFACES['account'], in_signature='', out_signature='b')
+    def EnableMessageFetching(self, enable):
+        provider = self._saywah_service.provider_manager.providers[self._account.provider_slug]
+        if enable:
+            if not self._account.uuid in account_messages_fetcher_threads:
+                log.info(u"Enabled message fetching for Account: %s" % self._account)
+                thread = AccountMessagesFetcherThread(self._account, provider, self._new_message_fetched_callback)
+                account_messages_fetcher_threads[self._account.uuid] = thread
+                thread.start()
+        else:
+            if self._account.uuid in account_messages_fetcher_threads:
+                log.info(u"Disabled message fetching for Account: %s" % self._account)
+                account_messages_fetcher_threads[self._account.uuid].stop()
+                del account_messages_fetcher_threads[self._account.uuid]
+
+    @dbus.service.signal(dbus_interface=DBUS_INTERFACES['account'], signature='a{sv}')
+    def MessageArrived(self, message):
+        self._last_messages.append(message)
+        if len(self._last_messages) == 20:
+            self._last_messages.pop(0)
 
 
 class SaywahDBus(dbus.service.Object):
@@ -333,6 +383,7 @@ class saywah_dbus_services(object):
 
     @classmethod
     def run(cls):
+        gobject.threads_init()
         mainloop = gobject.MainLoop()
         return mainloop.run()
 

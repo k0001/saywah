@@ -31,21 +31,31 @@ except ImportError:
 
 import httplib2
 
+from saywah.core import models
+from saywah.core.messages import Message
+from saywah.core.accounts import Account
 from saywah.core.providers import Provider, ProviderRemoteError
 
-__all__ = ('TwitterProvider',)
+
+__all__ = 'TwitterProvider', 'TwitterMessage',
 
 
 log = logging.getLogger(__name__)
 
 
-class TwiterRemoteError(ProviderRemoteError):
+class TwitterRemoteError(ProviderRemoteError):
     """Communication with Twitter failed"""
+
+
+class TwitterMessage(Message):
+    sender_id = models.UnicodeField()
+    provider_slug = models.UnicodeField(default=u'twitter') # TODO the default here is not working
 
 
 class TwitterProvider(Provider):
     name = u'Twitter'
     slug = u'twitter'
+    suggested_wait_time = 60
 
     def send_message(self, account, message):
         if len(message) > 140:
@@ -63,7 +73,7 @@ class TwitterProvider(Provider):
         log.info(u"Message %s sent" % msg_id)
 
     def get_new_messages(self, account):
-        h = httplib2.Http()
+        h = httplib2.Http(timeout=5)
         h.add_credentials(account.username, account.password)
         log.info(u"Receiving Twitter messages for account %s" % account.username)
         resp, content = h.request("http://twitter.com/statuses/friends_timeline.json", "GET")
@@ -74,19 +84,18 @@ class TwitterProvider(Provider):
         statuses = json.loads(content, encoding='utf-8')
         out = []
         for status in statuses:
-            print repr(status['created_at'])
-            message = {
-                'id': status['id'],
-                'utc_created_at': utc_datetime_from_twitter_timestamp(status['created_at']),
-                'raw_text': status['text'],
-                'sender_id': status['user']['id'],
-                'sender_name': status['user']['name'],
-                'sender_nick': status['user']['screen_name'],
-                'sender_avatar': status['user']['profile_image_url'],
-                'sender_home': u'http://twitter.com/%s' % status['user']['screen_name'] }
+            message = TwitterMessage(
+                provider_slug=u'twitter',
+                remote_id=unicode(status['id']),
+                utc_sent_at=utc_datetime_from_twitter_timestamp(status['created_at']),
+                text=status['text'],
+                sender_id=unicode(status['user']['id']),
+                sender_name=status['user']['name'],
+                sender_nick=status['user']['screen_name'],
+                sender_avatar_url=status['user']['profile_image_url'],
+                sender_home_url=u"http://twitter.com/%s" % status['user']['screen_name'])
             out.append(message)
-        # TODO: return some model
-        return out
+        return out[::-1]
 
 
 def utc_datetime_from_twitter_timestamp(s):

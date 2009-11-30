@@ -43,7 +43,7 @@ class Field(object):
         obj._field_values[self._attr_name_for(obj)] = value
 
     def _attr_name_for(self, obj):
-        for k,v in obj.__class__.__dict__.items():
+        for k,v in obj.__class__.get_fields().items():
             if v is self:
                 return k
 
@@ -68,31 +68,40 @@ class Model(object):
     def __init__(self, **kwargs):
         super(Model, self).__init__()
         # Field default values
-        for k,v in self.__class__.__dict__.items():
-            if isinstance(v, Field):
-                v.prepare(self)
-                if k in kwargs:
-                    setattr(self, k, kwargs.pop(k))
+
+        for k,v in self.__class__.get_fields().items():
+            v.prepare(self)
+            if k in kwargs:
+                setattr(self, k, kwargs[k])
+
+    @classmethod
+    def get_fields(cls):
+        out = {}
+        for c in reversed([c for c in cls.mro() if issubclass(c, Model)]):
+            for k,v in c.__dict__.items():
+                if isinstance(v, Field):
+                    out[k] = v
+        return out
 
     @classmethod
     def get_field_names(cls):
-        return tuple(k for (k,v) in cls.__dict__.items() if isinstance(v, Field))
+        return tuple(cls.get_fields().keys())
+
 
     def to_dict(self, raw=False):
         ud = {}
-        for k,v in self.__class__.__dict__.items():
-            if isinstance(v, Field):
-                if raw:
-                    ud[k] = v.to_raw(getattr(self, k))
-                else:
-                    ud[k] = getattr(self, k)
+        for k,v in self.__class__.get_fields().items():
+            if raw:
+                ud[k] = v.to_raw(getattr(self, k))
+            else:
+                ud[k] = getattr(self, k)
         return ud
 
     @classmethod
     def from_dict(cls, ud, raw=False):
         obj = cls()
-        for k,v in cls.__dict__.items():
-            if k in ud and isinstance(v, Field):
+        for k,v in cls.get_fields().items():
+            if k in ud:
                 if raw:
                     setattr(obj, k, v.from_raw(ud[k]))
                 else:
