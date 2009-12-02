@@ -22,16 +22,22 @@
   </object>
   <object class="GtkListStore" id="model_statuses">
     <columns>
+      <!-- column-name provider_dbus_object_path -->
+      <column type="gchararray"/>
+      <!-- column-name provider_slug -->
+      <column type="gchararray"/>
+      <!-- column-name provider_pic -->
+      <column type="GdkPixbuf"/>
+      <!-- column-name account_dbus_object_path -->
+      <column type="gchararray"/>
+      <!-- column-name account_username -->
+      <column type="gchararray"/>
       <!-- column-name sender_name -->
       <column type="gchararray"/>
       <!-- column-name sender_pic -->
       <column type="GdkPixbuf"/>
       <!-- column-name message -->
       <column type="gchararray"/>
-      <!-- column-name provider_name -->
-      <column type="gchararray"/>
-      <!-- column-name provider_pic -->
-      <column type="GdkPixbuf"/>
     </columns>
   </object>
   <object class="GtkListStore" id="model_providers">
@@ -108,6 +114,7 @@
                         <property name="visible">True</property>
                         <property name="use_underline">True</property>
                         <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_about"/>
                       </object>
                     </child>
                   </object>
@@ -121,37 +128,47 @@
           </packing>
         </child>
         <child>
-          <object class="GtkTreeView" id="treeview_statuses">
+          <object class="GtkScrolledWindow" id="scrolledwindow1">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
-            <property name="model">model_statuses</property>
-            <property name="headers_visible">False</property>
-            <signal name="size_allocate" handler="on_treeview_statuses_size_allocate"/>
+            <property name="hscrollbar_policy">never</property>
+            <property name="vscrollbar_policy">automatic</property>
             <child>
-              <object class="GtkTreeViewColumn" id="col_statuses_message">
-                <property name="resizable">True</property>
-                <property name="sizing">fixed</property>
-                <property name="fixed_width">2</property>
-                <property name="title">Message</property>
-                <property name="expand">True</property>
+              <object class="GtkTreeView" id="treeview_statuses">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="model">model_statuses</property>
+                <property name="headers_visible">False</property>
+                <property name="headers_clickable">False</property>
+                <property name="search_column">0</property>
+                <signal name="size_allocate" handler="on_treeview_statuses_size_allocate"/>
                 <child>
-                  <object class="GtkCellRendererText" id="cr_statuses_message"/>
-                  <attributes>
-                    <attribute name="markup">2</attribute>
-                  </attributes>
+                  <object class="GtkTreeViewColumn" id="col_statuses_message">
+                    <property name="resizable">True</property>
+                    <property name="sizing">fixed</property>
+                    <property name="fixed_width">2</property>
+                    <property name="title">Message</property>
+                    <property name="expand">True</property>
+                    <child>
+                      <object class="GtkCellRendererText" id="cr_statuses_message"/>
+                      <attributes>
+                        <attribute name="text">7</attribute>
+                      </attributes>
+                    </child>
+                  </object>
                 </child>
-              </object>
-            </child>
-            <child>
-              <object class="GtkTreeViewColumn" id="col_statuses_sender_pic">
-                <property name="sizing">autosize</property>
-                <property name="title">Sender Picture</property>
-                <property name="alignment">1</property>
                 <child>
-                  <object class="GtkCellRendererPixbuf" id="cr_statuses_sender_pic"/>
-                  <attributes>
-                    <attribute name="pixbuf">1</attribute>
-                  </attributes>
+                  <object class="GtkTreeViewColumn" id="col_statuses_sender_pic">
+                    <property name="sizing">autosize</property>
+                    <property name="title">Sender Picture</property>
+                    <property name="alignment">1</property>
+                    <child>
+                      <object class="GtkCellRendererPixbuf" id="cr_statuses_sender_pic"/>
+                      <attributes>
+                        <attribute name="pixbuf">6</attribute>
+                      </attributes>
+                    </child>
+                  </object>
                 </child>
               </object>
             </child>

@@ -17,9 +17,12 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import functools
 import glob
+import hashlib
 import logging
 import os
+import urllib2
 
 import dbus
 import dbus.mainloop.glib
@@ -29,6 +32,20 @@ import gtk
 import pango
 
 
+LICENSE_EXCERPT = u"""\
+Saywah is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Saywah is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Saywah.  If not, see <http://www.gnu.org/licenses/>."""
+
 mainloop = gobject.MainLoop()
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
@@ -36,14 +53,34 @@ SAYWAH_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
 SAYWAH_GUI_RESOURCES_PATH = os.path.join(SAYWAH_GUI_PATH, u'resources')
 SAYWAH_GTKUI_XML_PATH = os.path.join(SAYWAH_GUI_PATH, u'saywah.ui')
 
+SAYWAH_CACHE_PATH = os.path.join(os.path.expanduser('~/'), '.cache', 'saywah-gtk')
+SAYWAH_CACHE_AVATAR_IMAGES_PATH = os.path.join(SAYWAH_CACHE_PATH, 'avatar-images')
+
 DBUS_CONNECTION = dbus.SessionBus()
 DBUS_BUS_NAME = 'org.saywah.Saywah'
+
 
 log = logging.getLogger(__name__)
 
 
-def get_saywah_dbus_object(object_path):
-    return DBUS_CONNECTION.get_object(DBUS_BUS_NAME, object_path)
+def get_cached_avatar_image_path(avatar_url):
+    img_fname = hashlib.sha1(avatar_url).hexdigest()
+    try:
+        img_fname += '.' + avatar_url.rsplit('/', 1)[1].rsplit('.', 1)[1]
+    except IndexError:
+        pass
+    img_path = os.path.join(SAYWAH_CACHE_AVATAR_IMAGES_PATH, img_fname)
+    if not os.path.isfile(img_path):
+        try:
+            resp = urllib2.urlopen(avatar_url)
+        except urllib2.HTTPError:
+            return None
+        f = open(img_path, 'wb')
+        try:
+            f.write(resp.read())
+        finally:
+            f.close()
+    return img_path
 
 
 def get_pixbuf_from_filename(fname, width, height):
@@ -54,7 +91,6 @@ def get_pixbuf_from_filename(fname, width, height):
         _pixbuf_cache = {}
     key = (fname, width, height)
     if not key in _pixbuf_cache:
-        fname = os.path.join(SAYWAH_GUI_RESOURCES_PATH, fname)
         if not os.path.isfile(fname):
             pixbuf = None
         else:
@@ -63,10 +99,13 @@ def get_pixbuf_from_filename(fname, width, height):
     return _pixbuf_cache[key]
 
 
+def get_saywah_dbus_object(object_path):
+    return DBUS_CONNECTION.get_object(DBUS_BUS_NAME, object_path)
+
+
 def osd_notify(title, body, icon_data=""):
     n = DBUS_CONNECTION.get_object('org.freedesktop.Notifications', '/org/freedesktop/Notifications')
-    return n.Notify(u"Saywah", 0, icon_data, title, body, '', {}, -1,
-                    dbus_interface='org.freedesktop.Notifications')
+    return n.Notify(u"Saywah", 0, icon_data, title, body, '', {}, -1, dbus_interface='org.freedesktop.Notifications')
 
 
 class SaywahGTK(object):
@@ -81,11 +120,41 @@ class SaywahGTK(object):
         self.reload_model_providers()
         self.reload_model_accounts()
 
-        win_main = self._builder.get_object(u'win_main')
+        combo_accounts = self._builder.get_object('combo_accounts')
+        combo_accounts.set_active(0)
+
+        win_main = self._builder.get_object('win_main')
         win_main.show_all()
 
-    def _on_dbus_MessageArrived(self, message):
-        osd_notify(unicode(message['sender_nick']), unicode(message['text']))
+    def _on_account_message_arrived(self, message, provider, account):
+        log.info(u"Nex message: %s" % message)
+
+        aprops = account.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
+        pprops = provider.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
+
+        account_path = unicode(account.object_path)
+        provider_path = unicode(provider.object_path)
+        provider_slug = unicode(pprops['slug'])
+        account_username = unicode(aprops['username'])
+        sender_name = unicode(message['sender_name'] or message['sender_name'])
+        message_text = unicode(message['text'])
+        message_time = unicode(message['utc_sent_at'])
+
+        provider_pic_img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'provider_%s.png' % provider_slug)
+        provider_pic = get_pixbuf_from_filename(provider_pic_img_path, 24, 24)
+
+        sender_pic_img_path = get_cached_avatar_image_path(message['sender_avatar_url'])
+        if sender_pic_img_path:
+            sender_pic = get_pixbuf_from_filename(sender_pic_img_path, 48, 48)
+        else:
+            sender_pic = None
+
+        m = self._builder.get_object('model_statuses')
+        m.prepend([provider_path, provider_slug, provider_pic,
+                   account_path, account_username,
+                   sender_name, sender_pic, message_text])
+
+        #osd_notify(sender_name, message_text)
 
     def reload_model_accounts(self):
         m = self._builder.get_object('model_accounts')
@@ -98,10 +167,11 @@ class SaywahGTK(object):
                 if not apath in self._loaded_accounts:
                     account = get_saywah_dbus_object(apath)
                     aprops = account.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
+                    img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'provider_%s.png' % pprops['slug'])
                     m.append([apath, ppath, aprops['username'], aprops['uuid'], pprops['name'], pprops['slug'],
-                              get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
-                    account.connect_to_signal('MessageArrived', self._on_dbus_MessageArrived,
-                                               dbus_interface='org.saywah.Account')
+                              get_pixbuf_from_filename(img_path, 24, 24)])
+                    callback = functools.partial(self._on_account_message_arrived, provider=provider, account=account)
+                    account.connect_to_signal('MessageArrived', callback, dbus_interface='org.saywah.Account')
                     account.EnableMessageFetching(True, dbus_interface='org.saywah.Account')
                     self._loaded_accounts.add(apath)
 
@@ -113,12 +183,24 @@ class SaywahGTK(object):
             if not ppath in self._loaded_providers:
                 provider = get_saywah_dbus_object(ppath)
                 pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
+                img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'provider_%s.png' % pprops['slug'])
                 m.append([ppath, pprops['slug'], pprops['name'],
-                          get_pixbuf_from_filename(u'provider_%s.png' % pprops['slug'], 24, 24)])
+                          get_pixbuf_from_filename(img_path, 24, 24)])
                 self._loaded_providers.add(ppath)
 
     def on_quit(self, widget):
         mainloop.quit()
+
+    def on_about(self, widget):
+        dlg = gtk.AboutDialog()
+        dlg.set_name(u"Saywah")
+        dlg.set_comments(u"A GTK microblogging client")
+        dlg.set_copyright(u"Copyright © 2009 - Renzo Carbonara")
+        dlg.set_website(u"http://github.com/k0001/saywah")
+        dlg.set_authors([u"Renzo Carbonara"])
+        dlg.set_license(LICENSE_EXCERPT)
+        dlg.run()
+        dlg.hide()
 
     def on_menu_accounts_add_activate(self, widget):
         combo_providers = self._builder.get_object('combo_providers')
@@ -126,7 +208,7 @@ class SaywahGTK(object):
         entry_password = self._builder.get_object('entry_password')
         dlg_account_add = self._builder.get_object('dlg_account_add')
 
-        self.reload_model_accounts()
+        self.reload_model_providers()
         combo_providers.set_active(0)
         combo_providers.grab_focus()
         entry_username.set_text('')
@@ -194,5 +276,7 @@ class SaywahGTK(object):
 
 
 def run():
+    if not os.path.isdir(SAYWAH_CACHE_AVATAR_IMAGES_PATH):
+        os.makedirs(SAYWAH_CACHE_AVATAR_IMAGES_PATH)
     saywah_gtk = SaywahGTK()
     return mainloop.run()
