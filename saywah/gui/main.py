@@ -143,8 +143,7 @@ class SaywahGTK(object):
         win_main.show_all()
 
     def _on_account_message_arrived(self, message, provider, account):
-        log.info(u"Nex message: %s" % message)
-
+        log.debug(u"New Message: %s" % message)
         aprops = account.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
         pprops = provider.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
 
