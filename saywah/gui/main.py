@@ -22,6 +22,7 @@ import glob
 import hashlib
 import logging
 import os
+import re
 import urllib2
 
 import dbus
@@ -99,6 +100,14 @@ def get_pixbuf_from_filename(fname, width, height):
     return _pixbuf_cache[key]
 
 
+def get_status_message_pango_markup(sender_name, message_time, message_text, provider_slug):
+    if provider_slug == 'twitter':
+        message_text = message_text.replace('<', '&lt;')
+        message_text = message_text.replace('>', '&gt;')
+        message_text = re.sub(r'(^|\W)@(\w+)(\W|$)', r'\1<b>@\2</b>\3', message_text)
+
+    return u'<b>%s</b> %s\n<span color="#777777">On %s</span>' % (sender_name, message_text, message_time)
+
 def get_saywah_dbus_object(object_path):
     return DBUS_CONNECTION.get_object(DBUS_BUS_NAME, object_path)
 
@@ -120,6 +129,13 @@ class SaywahGTK(object):
         self.reload_model_providers()
         self.reload_model_accounts()
 
+        cr_statuses_sender_pic = self._builder.get_object('cr_statuses_sender_pic')
+        cr_statuses_sender_pic.set_property('yalign', 0.0)
+
+        cr_statuses_message = self._builder.get_object('cr_statuses_message')
+        cr_statuses_message.set_property('wrap-mode', pango.WRAP_WORD_CHAR)
+        cr_statuses_message.set_property('yalign', 0.0)
+
         combo_accounts = self._builder.get_object('combo_accounts')
         combo_accounts.set_active(0)
 
@@ -136,9 +152,11 @@ class SaywahGTK(object):
         provider_path = unicode(provider.object_path)
         provider_slug = unicode(pprops['slug'])
         account_username = unicode(aprops['username'])
-        sender_name = unicode(message['sender_name'] or message['sender_name'])
-        message_text = unicode(message['text'])
+        sender_name = unicode(message['sender_nick'] or message['sender_name'])
         message_time = unicode(message['utc_sent_at'])
+        message_text = unicode(message['text'])
+
+        status_message_markup = get_status_message_pango_markup(sender_name, message_time, message_text, provider_slug)
 
         provider_pic_img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'provider_%s.png' % provider_slug)
         provider_pic = get_pixbuf_from_filename(provider_pic_img_path, 24, 24)
@@ -152,7 +170,7 @@ class SaywahGTK(object):
         m = self._builder.get_object('model_statuses')
         m.prepend([provider_path, provider_slug, provider_pic,
                    account_path, account_username,
-                   sender_name, sender_pic, message_text])
+                   sender_name, sender_pic, status_message_markup])
 
         #osd_notify(sender_name, message_text)
 
@@ -229,6 +247,11 @@ class SaywahGTK(object):
             log.info(u"Added %s account %s [uuid:%s]" % (provider_slug, username, uuid))
             self.reload_model_accounts()
         dlg_account_add.hide()
+
+    def on_treeview_statuses_size_allocate(self, widget, allocation):
+        col_statuses_message = self._builder.get_object('col_statuses_message')
+        cr_statuses_message = self._builder.get_object('cr_statuses_message')
+        cr_statuses_message.set_property('wrap-width', col_statuses_message.get_width() - 5)
 
     def on_btn_send_clicked(self, widget):
         def update_message_waiting(_tmp={}):

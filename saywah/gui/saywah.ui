@@ -141,6 +141,7 @@
                 <property name="headers_visible">False</property>
                 <property name="headers_clickable">False</property>
                 <property name="search_column">0</property>
+                <property name="show_expanders">False</property>
                 <signal name="size_allocate" handler="on_treeview_statuses_size_allocate"/>
                 <child>
                   <object class="GtkTreeViewColumn" id="col_statuses_message">
@@ -152,7 +153,7 @@
                     <child>
                       <object class="GtkCellRendererText" id="cr_statuses_message"/>
                       <attributes>
-                        <attribute name="text">7</attribute>
+                        <attribute name="markup">7</attribute>
                       </attributes>
                     </child>
                   </object>
