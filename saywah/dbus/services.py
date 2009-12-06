@@ -19,6 +19,7 @@
 import logging
 import threading
 import time
+import traceback
 from collections import deque
 
 import dbus
@@ -65,13 +66,17 @@ class AccountMessagesFetcherThread(threading.Thread):
 
     def run(self):
         while True:
-            for m in self._provider.get_new_messages(self._account):
-                if not m.uuid in self._seen_messages:
-                    self._seen_messages.add(m.uuid)
-                    self._callback(m)
-            log.debug(u"Waiting %d seconds before next Account %s messages update" \
-                        % (self._provider.suggested_wait_time, self._account))
-            time.sleep(self._provider.suggested_wait_time)
+            try:
+                for m in self._provider.get_new_messages(self._account):
+                    if not m.uuid in self._seen_messages:
+                        self._seen_messages.add(m.uuid)
+                        self._callback(m)
+            except:
+                traceback.print_exc()
+            finally:
+                log.debug(u"Waiting %d seconds before next Account %s messages update" \
+                            % (self._provider.suggested_wait_time, self._account))
+                time.sleep(self._provider.suggested_wait_time)
 
 
 class ProvidersDBus(dbus.service.Object):
