@@ -16,10 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
-
 import logging
 import threading
 import time
+from collections import deque
 
 import dbus
 import dbus.mainloop.glib
@@ -54,6 +54,8 @@ DBUS_INTERFACES = {
 
 
 class AccountMessagesFetcherThread(threading.Thread):
+    threads = {}
+
     def __init__(self, account, provider, callback):
         self._account = account
         self._provider = provider
@@ -70,8 +72,6 @@ class AccountMessagesFetcherThread(threading.Thread):
             log.debug(u"Waiting %d seconds before next Account %s messages update" \
                         % (self._provider.suggested_wait_time, self._account))
             time.sleep(self._provider.suggested_wait_time)
-
-account_messages_fetcher_threads = {}
 
 
 class ProvidersDBus(dbus.service.Object):
@@ -268,7 +268,9 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
     def __init__(self, saywah_service, account, *args, **kwargs):
         self._saywah_service = saywah_service
         self._account = account
-        self._last_messages = []
+        self._last_messages = deque()
+        self._fetching_enabled = False
+        self._toggle_message_fetching(True)
         super(AccountDBus, self).__init__(*args, **kwargs)
 
     # DBusPropertiesExposer properties
@@ -287,6 +289,22 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
         d['uuid'] = message.uuid
         self.MessageArrived(d)
 
+    def _toggle_message_fetching(self, enable=True):
+        provider = self._saywah_service.provider_manager.providers[self._account.provider_slug]
+        if enable:
+            if not self._fetching_enabled:
+                log.info(u"Enabled message fetching for Account: %s" % self._account)
+                thread = AccountMessagesFetcherThread(self._account, provider, self._new_message_fetched_callback)
+                AccountMessagesFetcherThread.threads[self._account.uuid] = thread
+                thread.start()
+                self._fetching_enabled = True
+        else:
+            if self._fetching_enabled:
+                log.info(u"Disabled message fetching for Account: %s" % self._account)
+                AccountMessagesFetcherThread.threads[self._account.uuid].stop()
+                del AccountMessagesFetcherThread.threads[self._account.uuid]
+                self._fetching_enabled = False
+
 
     # DBus exposed methods
 
@@ -297,24 +315,21 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES['account'], in_signature='', out_signature='b')
     def EnableMessageFetching(self, enable):
-        provider = self._saywah_service.provider_manager.providers[self._account.provider_slug]
-        if enable:
-            if not self._account.uuid in account_messages_fetcher_threads:
-                log.info(u"Enabled message fetching for Account: %s" % self._account)
-                thread = AccountMessagesFetcherThread(self._account, provider, self._new_message_fetched_callback)
-                account_messages_fetcher_threads[self._account.uuid] = thread
-                thread.start()
-        else:
-            if self._account.uuid in account_messages_fetcher_threads:
-                log.info(u"Disabled message fetching for Account: %s" % self._account)
-                account_messages_fetcher_threads[self._account.uuid].stop()
-                del account_messages_fetcher_threads[self._account.uuid]
+        self._toggle_message_fetching(enable)
+
+    @dbus.service.method(dbus_interface=DBUS_INTERFACES['account'], out_signature='aa{sv}')
+    def GetLastFetchedMessages(self):
+        return self._last_messages
+
+
+    # DBus signals
 
     @dbus.service.signal(dbus_interface=DBUS_INTERFACES['account'], signature='a{sv}')
     def MessageArrived(self, message):
         self._last_messages.append(message)
         if len(self._last_messages) == 20:
-            self._last_messages.pop(0)
+            self._last_messages.popleft()
+
 
 
 class SaywahDBus(dbus.service.Object):
