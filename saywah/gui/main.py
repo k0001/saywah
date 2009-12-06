@@ -224,6 +224,7 @@ class SaywahGTK(object):
         entry_username = self._builder.get_object('entry_username')
         entry_password = self._builder.get_object('entry_password')
         dlg_account_add = self._builder.get_object('dlg_account_add')
+        model_provider = self._builder.get_object(u'model_providers')
 
         self.reload_model_providers()
         combo_providers.set_active(0)
@@ -234,7 +235,7 @@ class SaywahGTK(object):
         response = dlg_account_add.run()
         if response == gtk.RESPONSE_OK:
             iprovider = combo_providers.get_active_iter()
-            provider_slug = self._model_providers.get_value(iprovider, 1)
+            provider_slug = model_providers.get_value(iprovider, 1)
             username = entry_username.get_text().decode('utf8')
             password = entry_password.get_text().decode('utf8')
             accounts = get_saywah_dbus_object('/org/saywah/Saywah/accounts')
