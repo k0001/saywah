@@ -123,9 +123,12 @@ class SaywahGTK(object):
         self._builder.add_from_file(SAYWAH_GTKUI_XML_PATH)
         self._builder.connect_signals(self)
 
+        self._model_statuses = self._builder.get_object('model_statuses')
+        self._model_providers = self._builder.get_object('model_providers')
+        self._model_accounts = self._builder.get_object('model_accounts')
+
         self._loaded_providers = set()
         self._loaded_accounts = set()
-
         self.reload_model_providers()
         self.reload_model_accounts()
 
@@ -139,10 +142,10 @@ class SaywahGTK(object):
         combo_accounts = self._builder.get_object('combo_accounts')
         combo_accounts.set_active(0)
 
-        win_main = self._builder.get_object('win_main')
-        win_main.show_all()
+        self._win_main = self._builder.get_object('win_main')
+        self._win_main.show_all()
 
-    def _on_account_message_arrived(self, message, provider, account):
+    def _model_statuses_add_message(self, message, account, provider):
         log.debug(u"New Message: %s" % message)
         aprops = account.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
         pprops = provider.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
@@ -166,43 +169,55 @@ class SaywahGTK(object):
         else:
             sender_pic = None
 
-        m = self._builder.get_object('model_statuses')
-        m.prepend([provider_path, provider_slug, provider_pic,
-                   account_path, account_username,
-                   sender_name, sender_pic, status_message_markup])
+        self._model_statuses.prepend([provider_path, provider_slug, provider_pic,
+                                      account_path, account_username,
+                                      sender_name, sender_pic, status_message_markup])
 
-        #osd_notify(sender_name, message_text)
+    def _on_account_message_arrived(self, message, account, provider):
+        self._model_statuses_add_message(message, account, provider)
+        if not self._win_main.is_active():
+            osd_notify(message['sender_nick'] or message['sender_name'], message['text'])
+
 
     def reload_model_accounts(self):
-        m = self._builder.get_object('model_accounts')
-        m.clear()
+        self._model_accounts.clear()
         self.reload_model_providers()
+
         for ppath in self._loaded_providers:
             provider = get_saywah_dbus_object(ppath)
             pprops = provider.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
+
             for apath in provider.GetAccounts(dbus_interface='org.saywah.Provider'):
                 if not apath in self._loaded_accounts:
                     account = get_saywah_dbus_object(apath)
                     aprops = account.GetAll('', dbus_interface='org.freedesktop.DBus.Properties')
+
                     img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'provider_%s.png' % pprops['slug'])
-                    m.append([apath, ppath, aprops['username'], aprops['uuid'], pprops['name'], pprops['slug'],
-                              get_pixbuf_from_filename(img_path, 24, 24)])
-                    callback = functools.partial(self._on_account_message_arrived, provider=provider, account=account)
+                    self._model_accounts.append([apath, ppath, aprops['username'], aprops['uuid'], pprops['name'],
+                                                 pprops['slug'], get_pixbuf_from_filename(img_path, 24, 24)])
+
+                    for message in account.GetLastFetchedMessages(dbus_interface='org.saywah.Account'):
+                        self._model_statuses_add_message(message, account, provider)
+
+                    callback = functools.partial(self._on_account_message_arrived, account=account, provider=provider)
                     account.connect_to_signal('MessageArrived', callback, dbus_interface='org.saywah.Account')
                     account.EnableMessageFetching(True, dbus_interface='org.saywah.Account')
+
                     self._loaded_accounts.add(apath)
 
     def reload_model_providers(self):
-        m = self._builder.get_object(u'model_providers')
-        m.clear()
+        self._model_providers.clear()
+
         providers = get_saywah_dbus_object('/org/saywah/Saywah/providers')
         for ppath in providers.GetProviders(dbus_interface='org.saywah.Providers'):
             if not ppath in self._loaded_providers:
                 provider = get_saywah_dbus_object(ppath)
                 pprops = provider.GetAll(u'', dbus_interface='org.freedesktop.DBus.Properties')
+
                 img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, u'provider_%s.png' % pprops['slug'])
-                m.append([ppath, pprops['slug'], pprops['name'],
-                          get_pixbuf_from_filename(img_path, 24, 24)])
+                self._model_providers.append([ppath, pprops['slug'], pprops['name'],
+                                              get_pixbuf_from_filename(img_path, 24, 24)])
+
                 self._loaded_providers.add(ppath)
 
     def on_quit(self, widget):
@@ -224,7 +239,6 @@ class SaywahGTK(object):
         entry_username = self._builder.get_object('entry_username')
         entry_password = self._builder.get_object('entry_password')
         dlg_account_add = self._builder.get_object('dlg_account_add')
-        model_provider = self._builder.get_object(u'model_providers')
 
         self.reload_model_providers()
         combo_providers.set_active(0)
@@ -235,7 +249,7 @@ class SaywahGTK(object):
         response = dlg_account_add.run()
         if response == gtk.RESPONSE_OK:
             iprovider = combo_providers.get_active_iter()
-            provider_slug = model_providers.get_value(iprovider, 1)
+            provider_slug = self._model_providers.get_value(iprovider, 1)
             username = entry_username.get_text().decode('utf8')
             password = entry_password.get_text().decode('utf8')
             accounts = get_saywah_dbus_object('/org/saywah/Saywah/accounts')
@@ -281,11 +295,10 @@ class SaywahGTK(object):
             raise TODO
 
         combo_accounts = self._builder.get_object('combo_accounts')
-        model_accounts = self._builder.get_object('model_accounts')
         entry_message = self._builder.get_object('entry_message')
 
         iaccount = combo_accounts.get_active_iter()
-        apath = model_accounts.get_value(iaccount, 0)
+        apath = self._model_accounts.get_value(iaccount, 0)
         account = get_saywah_dbus_object(apath)
         message = entry_message.get_text().decode('utf8')
 
