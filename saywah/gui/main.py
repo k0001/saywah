@@ -112,9 +112,11 @@ def get_saywah_dbus_object(object_path):
     return DBUS_CONNECTION.get_object(DBUS_BUS_NAME, object_path)
 
 
-def osd_notify(title, body, icon_data=""):
+def osd_notify(title, body, icon_path=None):
+    if not icon_path:
+        icon_path = ""
     n = DBUS_CONNECTION.get_object('org.freedesktop.Notifications', '/org/freedesktop/Notifications')
-    return n.Notify(u"Saywah", 0, icon_data, title, body, '', {}, -1, dbus_interface='org.freedesktop.Notifications')
+    return n.Notify(u"Saywah", 0, icon_path, title, body, '', {}, -1, dbus_interface='org.freedesktop.Notifications')
 
 
 class SaywahGTK(object):
@@ -173,11 +175,16 @@ class SaywahGTK(object):
                                       account_path, account_username,
                                       sender_name, sender_pic, status_message_markup])
 
+    def _new_message_osd_notify(self, message):
+        title = message['sender_nick'] or message['sender_name']
+        text = message['text']
+        icon = get_cached_avatar_image_path(message['sender_avatar_url'])
+        osd_notify(title, text, icon)
+
     def _on_account_message_arrived(self, message, account, provider):
         self._model_statuses_add_message(message, account, provider)
         if not self._win_main.is_active():
-            osd_notify(message['sender_nick'] or message['sender_name'], message['text'])
-
+            self._new_message_osd_notify(message)
 
     def reload_model_accounts(self):
         self._model_accounts.clear()
