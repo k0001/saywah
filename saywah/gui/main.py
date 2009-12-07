@@ -17,6 +17,7 @@
 # along with Saywah.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import cgi
 import functools
 import glob
 import hashlib
@@ -102,8 +103,7 @@ def get_pixbuf_from_filename(fname, width, height):
 
 def get_status_message_pango_markup(sender_name, message_time, message_text, provider_slug):
     if provider_slug == 'twitter':
-        message_text = message_text.replace('<', '&lt;')
-        message_text = message_text.replace('>', '&gt;')
+        message_text = cgi.escape(message_text, quote=True)
         message_text = re.sub(r'(^|\W)@(\w+)(\W|$)', r'\1<b>@\2</b>\3', message_text)
 
     return u'<b>%s</b> %s\n<span color="#777777">On %s</span>' % (sender_name, message_text, message_time)
@@ -128,6 +128,8 @@ class SaywahGTK(object):
         self._model_statuses = self._builder.get_object('model_statuses')
         self._model_providers = self._builder.get_object('model_providers')
         self._model_accounts = self._builder.get_object('model_accounts')
+
+        self._seen_messages = set()
 
         self._loaded_providers = set()
         self._loaded_accounts = set()
@@ -182,13 +184,17 @@ class SaywahGTK(object):
         osd_notify(title, text, icon)
 
     def _on_account_message_arrived(self, message, account, provider):
-        self._model_statuses_add_message(message, account, provider)
-        if not self._win_main.is_active():
-            self._new_message_osd_notify(message)
+        message_uuid = unicode(message['uuid'])
+        if not message_uuid in self._seen_messages:
+            self._seen_messages.add(message_uuid)
+            self._model_statuses_add_message(message, account, provider)
+            if not self._win_main.is_active():
+                self._new_message_osd_notify(message)
 
     def reload_model_accounts(self):
-        self._model_accounts.clear()
         self.reload_model_providers()
+        self._model_accounts.clear()
+        self._loaded_accounts.clear()
 
         for ppath in self._loaded_providers:
             provider = get_saywah_dbus_object(ppath)
@@ -214,6 +220,7 @@ class SaywahGTK(object):
 
     def reload_model_providers(self):
         self._model_providers.clear()
+        self._loaded_providers.clear()
 
         providers = get_saywah_dbus_object('/org/saywah/Saywah/providers')
         for ppath in providers.GetProviders(dbus_interface='org.saywah.Providers'):
@@ -261,7 +268,7 @@ class SaywahGTK(object):
             password = entry_password.get_text().decode('utf8')
             accounts = get_saywah_dbus_object('/org/saywah/Saywah/accounts')
             apath = accounts.AddAccount(provider_slug, username, dbus_interface='org.saywah.Accounts')
-            account = get_saywah_dbus_object('org.saywah.Saywah', apath)
+            account = get_saywah_dbus_object(apath)
             account.Set('', 'password', password, dbus_interface='org.freedesktop.DBus.Properties')
             accounts.StoreAccounts(dbus_interface='org.saywah.Accounts')
             uuid = account.Get('', 'uuid', dbus_interface='org.freedesktop.DBus.Properties')
@@ -275,47 +282,51 @@ class SaywahGTK(object):
         cr_statuses_message.set_property('wrap-width', col_statuses_message.get_width() - 5)
 
     def on_btn_send_clicked(self, widget):
-        def update_message_waiting(_tmp={}):
-            btn_send = _tmp.setdefault('btn_send', self._builder.get_object('btn_send'))
-            img_btn_send = _tmp.setdefault('img_btn_send', self._builder.get_object('img_btn_send'))
+        self._sending_message = True
+
+        btn_send = self._builder.get_object('btn_send')
+        img_btn_send = self._builder.get_object('img_btn_send')
+        combo_accounts = self._builder.get_object('combo_accounts')
+        entry_message = self._builder.get_object('entry_message')
+        img_btn_send_orig_stock = img_btn_send.get_stock()
+
+        entry_message.set_sensitive(False)
+        btn_send.set_sensitive(False)
+
+        throbber_frames = 31 # number of working-*.png images
+        self._throbber_next_frame = 0
+        def update_message_waiting():
             if self._sending_message:
-                if not 'next_frame' in _tmp:
-                    btn_send.set_sensitive(False)
-                    _tmp.setdefault('img_orig_stock', img_btn_send.get_stock())
-                    _tmp['next_frame'] = 0
-                n_frames = 31 # number of working-*.png images
-                img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH, 'working-%02d.png' % (_tmp['next_frame'] % n_frames))
+                img_path = os.path.join(SAYWAH_GUI_RESOURCES_PATH,
+                                        'working-%02d.png' % (self._throbber_next_frame % throbber_frames))
                 img_btn_send.set_from_pixbuf(get_pixbuf_from_filename(img_path, 24, 24))
-                _tmp['next_frame'] += 1
+                self._throbber_next_frame += 1
                 return True
             else:
-                img_btn_send.set_from_stock(*_tmp['img_orig_stock'])
+                img_btn_send.set_from_stock(*img_btn_send_orig_stock)
+                entry_message.set_sensitive(True)
                 btn_send.set_sensitive(True)
-                del _tmp['next_frame']
+                del self._throbber_next_frame
                 return False
 
-        def on_send_message_success():
+        def on_send_message_success(message):
             self._sending_message = False
 
         def on_send_message_error(error):
             self._sending_message = False
-            raise TODO
+            print error
 
-        combo_accounts = self._builder.get_object('combo_accounts')
-        entry_message = self._builder.get_object('entry_message')
+        message = { 'text': entry_message.get_text().decode('utf8') }
 
         iaccount = combo_accounts.get_active_iter()
         apath = self._model_accounts.get_value(iaccount, 0)
         account = get_saywah_dbus_object(apath)
-        message = entry_message.get_text().decode('utf8')
 
-        self._sending_message = True
         account.SendMessage(message, dbus_interface='org.saywah.Account',
                             reply_handler=on_send_message_success,
                             error_handler=on_send_message_error)
-
         log.info(u"Sending message: %s" % message)
-        gobject.timeout_add(50, update_message_waiting)
+        gobject.timeout_add(40, update_message_waiting)
 
 
 def run():

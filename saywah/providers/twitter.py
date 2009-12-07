@@ -58,10 +58,10 @@ class TwitterProvider(Provider):
     suggested_wait_time = 60
 
     def send_message(self, account, message):
-        if len(message) > 140:
+        if len(message['text']) > 140:
             raise ValueError(u"Message must be at most 140 characters long")
         msg_id = int(time.time())
-        data = {"status": message.encode("utf-8")}
+        data = {"status": message['text'].encode("utf-8")}
         h = httplib2.Http()
         h.add_credentials(account.username, account.password)
         log.info(u"Sending message %s with Twitter account %s" % (msg_id, account.username))
@@ -71,6 +71,8 @@ class TwitterProvider(Provider):
             log.warning(u"Message %s could not be sent: %s" % (msg_id, content))
             raise TwitterRemoteError(content)
         log.info(u"Message %s sent" % msg_id)
+        status = json.loads(content, encoding='utf-8')
+        return self._parse_status(status)
 
     def get_new_messages(self, account):
         h = httplib2.Http(timeout=5)
@@ -82,20 +84,19 @@ class TwitterProvider(Provider):
             raise TwitterRemoteError(content)
         log.info(u"Twitter messages for account % received" % account.username)
         statuses = json.loads(content, encoding='utf-8')
-        out = []
-        for status in statuses:
-            message = TwitterMessage(
-                provider_slug=u'twitter',
-                remote_id=unicode(status['id']),
-                utc_sent_at=utc_datetime_from_twitter_timestamp(status['created_at']),
-                text=status['text'],
-                sender_id=unicode(status['user']['id']),
-                sender_name=status['user']['name'],
-                sender_nick=status['user']['screen_name'],
-                sender_avatar_url=status['user']['profile_image_url'],
-                sender_home_url=u"http://twitter.com/%s" % status['user']['screen_name'])
-            out.append(message)
-        return out[::-1]
+        return [self._parse_status(status) for status in reversed(statuses)]
+
+    def _parse_status(self, status):
+        return TwitterMessage(
+            provider_slug=u'twitter',
+            remote_id=unicode(status['id']),
+            utc_sent_at=utc_datetime_from_twitter_timestamp(status['created_at']),
+            text=status['text'],
+            sender_id=unicode(status['user']['id']),
+            sender_name=status['user']['name'],
+            sender_nick=status['user']['screen_name'],
+            sender_avatar_url=status['user']['profile_image_url'],
+            sender_home_url=u"http://twitter.com/%s" % status['user']['screen_name'])
 
 
 def utc_datetime_from_twitter_timestamp(s):

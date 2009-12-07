@@ -313,10 +313,14 @@ class AccountDBus(dbus.service.Object, DBusPropertiesExposer):
 
     # DBus exposed methods
 
-    @dbus.service.method(dbus_interface=DBUS_INTERFACES['account'], in_signature='s', out_signature='')
+    @dbus.service.method(dbus_interface=DBUS_INTERFACES['account'], in_signature='a{sv}', out_signature='a{sv}')
     def SendMessage(self, message):
         provider = self._saywah_service.provider_manager.providers[self._account.provider_slug]
-        provider.send_message(self._account, message)
+        message = provider.send_message(self._account, message)
+        d = message.to_dict(raw=True)
+        d['uuid'] = message.uuid
+        self.MessageArrived(d)
+        return d
 
     @dbus.service.method(dbus_interface=DBUS_INTERFACES['account'], in_signature='', out_signature='b')
     def EnableMessageFetching(self, enable):

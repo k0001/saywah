@@ -49,10 +49,23 @@ class Provider(object):
     # The following methods are to be overriden by provider implementations
 
     def send_message(self, account, message):
+        """
+        Sends a message from the given account.
+
+        ``account`` should be an ``saywah.core.accounts.Account`` object,
+        ``message`` a ``dict`` containing the message data.
+
+        Returns a ``sayawh.core.messages.Message`` object.
+        """
         raise NotImplementedError()
     send_message._disabled = True
 
     def get_new_messages(self, account):
+        """
+        Get new messages for the given account.
+
+        Returns a list of ``sayawh.core.messages.Message`` objects in chronological order.
+        """
         raise NotImplementedError()
     get_new_messages._disabled = True
 
